@@ -9,11 +9,12 @@ import { createClient } from '@/lib/supabase/client'
 
 export const portalNav = [
   { href: '/portal', label: 'Dashboard' },
-  { href: '/portal/messages', label: 'Connect with Pharmacy', badge: 3 },
+  { href: '/portal/messages', label: 'Connect with Pharmacy' },
   { href: '/portal/deliveries', label: 'Delivery Tracking' },
   { href: '/portal/cutoffs', label: 'Order Cut-offs' },
   { href: '/portal/policies', label: 'Policies & Procedures' },
   { href: '/portal/contacts', label: 'Emergency & Contacts' },
+  { href: '/portal/account', label: 'Account' },
 ]
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
