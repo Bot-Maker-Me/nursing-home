@@ -35,6 +35,13 @@ create table if not exists public.homes (
   status text not null default 'active' check (status in ('active','suspended')),
   created_at timestamptz not null default now()
 );
+-- "create table if not exists" is a no-op on an older homes table, so add any missing columns.
+alter table public.homes add column if not exists city text not null default '';
+alter table public.homes add column if not exists beds integer not null default 0;
+alter table public.homes add column if not exists pharmacist text not null default '';
+alter table public.homes add column if not exists pharmacist_phone text not null default '';
+alter table public.homes add column if not exists after_hours text not null default '';
+alter table public.homes add column if not exists status text not null default 'active';
 
 create table if not exists public.pharmacies (
   id uuid primary key default gen_random_uuid(),
@@ -43,6 +50,8 @@ create table if not exists public.pharmacies (
   email text not null default '',
   created_at timestamptz not null default now()
 );
+alter table public.pharmacies add column if not exists phone text not null default '';
+alter table public.pharmacies add column if not exists email text not null default '';
 
 alter table public.profiles add column if not exists home_id uuid references public.homes(id) on delete set null;
 alter table public.profiles add column if not exists pharmacy_id uuid references public.pharmacies(id) on delete set null;

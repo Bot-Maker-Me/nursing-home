@@ -9,6 +9,10 @@ There are **three separate things** to set up. They don't depend on each other's
 1. Supabase → your project → **SQL Editor** → New query.
 2. Paste the **entire** contents of `supabase/schema.sql` → **Run**.
    - Expect: *"Success. No rows returned."*
+   - If your database was set up from `supabase/migrations/*` instead (rather than this
+     single file), also run `supabase/fix-permissions.sql`. Admin actions such as
+     **Create client** and **Create invitation** need table-level `INSERT`/`UPDATE`
+     grants; without them they fail with 500s even though the lists load.
 3. Confirm in **Table Editor**: `profiles`, `homes`, `pharmacies`, `invitations`,
    `chat_threads`, `portal_messages`, `portal_documents`, `managed_records`.
 4. Create your first admin:

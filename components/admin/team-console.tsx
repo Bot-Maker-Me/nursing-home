@@ -44,19 +44,36 @@ export function TeamConsole() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    void Promise.all([
-      fetch('/api/admin/entities').then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? 'Unable to load clients.'); return response.json() }),
-      fetch('/api/admin/users').then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? 'Unable to load users.'); return response.json() }),
-      fetch('/api/admin/invitations').then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? 'Unable to load invitations.'); return response.json() }),
+    const request = (url: string, fallback: string) =>
+      fetch(url).then(async (response) => {
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? fallback)
+        return response.json()
+      })
+
+    void Promise.allSettled([
+      request('/api/admin/entities', 'Unable to load clients.'),
+      request('/api/admin/users', 'Unable to load users.'),
+      request('/api/admin/invitations', 'Unable to load invitations.'),
     ])
       .then(([entities, userData, inviteData]) => {
-        setHomes(entities.homes ?? [])
-        setPharmacies(entities.pharmacies ?? [])
-        setUsers(userData)
-        setInvites(inviteData)
-        if (userData[0]) selectUser(userData[0])
+        if (entities.status === 'fulfilled') {
+          setHomes(entities.value.homes ?? [])
+          setPharmacies(entities.value.pharmacies ?? [])
+        } else {
+          toast.error(entities.reason instanceof Error ? entities.reason.message : 'Unable to load clients.')
+        }
+        if (userData.status === 'fulfilled') {
+          setUsers(userData.value)
+          if (userData.value[0]) selectUser(userData.value[0])
+        } else {
+          toast.error(userData.reason instanceof Error ? userData.reason.message : 'Unable to load users.')
+        }
+        if (inviteData.status === 'fulfilled') {
+          setInvites(inviteData.value)
+        } else {
+          toast.error(inviteData.reason instanceof Error ? inviteData.reason.message : 'Unable to load invitations.')
+        }
       })
-      .catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : 'Unable to load admin data.'))
       .finally(() => setLoading(false))
   }, [toast])
 

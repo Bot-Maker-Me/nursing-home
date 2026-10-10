@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/supabase/admin'
 import { SECTION_MAP, sectionTitle, type SectionKey } from '@/lib/data-sections'
 
 function scopeColumn(scopeType: string) {
@@ -7,13 +7,8 @@ function scopeColumn(scopeType: string) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-  const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const context = await requireAdmin()
+  if (!context.admin) return context.response
 
   const body = await request.json().catch(() => null)
   const section = body?.section as SectionKey
@@ -43,11 +38,11 @@ export async function POST(request: Request) {
       [scopeColumn(scopeType)]: scopeId,
       title: sectionTitle(def, payload),
       payload,
-      created_by: user.id,
+      created_by: context.userId,
     }
   })
 
-  const { data, error } = await supabase.from('managed_records').insert(records).select('id')
+  const { data, error } = await context.supabase.from('managed_records').insert(records).select('id')
   if (error) return NextResponse.json({ error: `Import failed: ${error.message}` }, { status: 503 })
   return NextResponse.json({ inserted: data?.length ?? 0 })
 }
