@@ -94,12 +94,13 @@ function PasswordField({
 
 const passwordRules = [{ test: (p: string) => p.length >= 8, label: '8+ characters' }]
 
-function AccountReady({ name }: { name: string }) {
+function AccountReady({ name, homeName, role }: { name: string; homeName: string; role: string }) {
   const firstName = name.trim().split(' ')[0] || 'there'
+  const pharmacy = role.toLowerCase() === 'pharmacy'
   const access = [
-    ['Home', 'Maple Grove LTC · Wing B'],
-    ['Role', 'Charge nurse'],
-    ['Permissions', 'Messages, deliveries, cut-offs, policies'],
+    ['Home', homeName || (pharmacy ? "Henderson's Pharmacy" : 'Your care home')],
+    ['Role', pharmacy ? 'Pharmacy team' : role || 'Authorized partner'],
+    ['Permissions', pharmacy ? 'Conversations with every care home' : 'Messages, deliveries, cut-offs, policies'],
     ['Session', 'Signs out after 10 min idle'],
   ]
   return (
@@ -124,13 +125,12 @@ function AccountReady({ name }: { name: string }) {
       </dl>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <Link
-          href="/portal"
+          href={pharmacy ? '/pharmacy' : '/portal'}
           className="inline-flex h-12 flex-1 items-center justify-center gap-3 bg-forest px-5 font-semibold text-cream hover:bg-forest-deep"
         >
-          Enter home portal
+          {pharmacy ? 'Open pharmacy console' : 'Enter home portal'}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
-
       </div>
     </div>
   )
@@ -151,6 +151,8 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
   const [showSigninPassword, setShowSigninPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [inviteHome, setInviteHome] = useState('')
+  const [inviteRole, setInviteRole] = useState('')
 
   const switchMode = (m: Mode) => {
     setMode(m)
@@ -342,6 +344,8 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                   setError(invitationData.error ?? 'That invitation code is not valid.')
                   return
                 }
+                setInviteHome(String(invitationData.homeName ?? ''))
+                setInviteRole(String(invitationData.role ?? 'Authorized partner'))
                 const normalizedEmail = email.trim().toLowerCase()
                 const { data: signUpData, error: authError } = await supabase.auth.signUp({
                   email: normalizedEmail,
@@ -471,7 +475,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
             </form>
           )}
 
-          {step === 'ready' && <AccountReady name={name} />}
+          {step === 'ready' && <AccountReady name={name} homeName={inviteHome} role={inviteRole} />}
 
           <p className="mt-8 border-t border-hairline pt-5 text-xs leading-relaxed text-muted-foreground">
             Authorized users only. Activity is recorded in an audit log. Locked out? Call{' '}

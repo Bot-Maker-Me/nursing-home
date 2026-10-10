@@ -198,6 +198,8 @@ create policy "Users can read own profile" on public.profiles for select to auth
 -- homes / pharmacies
 drop policy if exists "Read own home" on public.homes;
 create policy "Read own home" on public.homes for select to authenticated using (public.is_admin() or id = public.current_home_id());
+drop policy if exists "Pharmacy reads homes" on public.homes;
+create policy "Pharmacy reads homes" on public.homes for select to authenticated using (public.is_pharmacy());
 drop policy if exists "Admins manage homes" on public.homes;
 create policy "Admins manage homes" on public.homes for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
@@ -216,6 +218,9 @@ create policy "Start own threads" on public.chat_threads for insert to authentic
 drop policy if exists "Update scoped threads" on public.chat_threads;
 create policy "Update scoped threads" on public.chat_threads for update to authenticated
   using (public.is_admin() or public.is_pharmacy() or created_by = (select auth.uid()) or home_id = public.current_home_id());
+drop policy if exists "Pharmacy starts threads" on public.chat_threads;
+create policy "Pharmacy starts threads" on public.chat_threads for insert to authenticated
+  with check (public.is_pharmacy() and created_by = (select auth.uid()));
 
 -- portal_messages
 drop policy if exists "Users can read their own portal messages" on public.portal_messages;

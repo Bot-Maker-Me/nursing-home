@@ -14,7 +14,12 @@ import { cn } from '@/lib/utils'
 const field = 'h-11 w-full border border-hairline bg-cream px-3 text-sm focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20'
 
 type Invite = { id?: string; email: string; code: string; home_name: string; expires_at: string; accepted_at?: string | null }
-type PortalUser = { id: string; email?: string; name: string; assignedPharmacist: string; homeName: string; homeId: string }
+type PortalUser = { id: string; email?: string; name: string; assignedPharmacist: string; homeName: string; homeId: string; role: string }
+
+const PARTNER_ROLE = 'Authorized partner'
+const PHARMACY_ROLE = 'Pharmacy'
+const isPharmacyRole = (role: string) => role.toLowerCase() === 'pharmacy'
+const roleLabel = (role: string) => (isPharmacyRole(role) ? 'Pharmacy team' : 'Nursing home partner')
 
 const NAV = [
   { id: 'clients', label: 'Clients & pharmacies' },
@@ -39,6 +44,7 @@ export function TeamConsole() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('Authorized partner')
   const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedRole, setSelectedRole] = useState(PARTNER_ROLE)
   const [assignedPharmacist, setAssignedPharmacist] = useState('')
   const [homeName, setHomeName] = useState('')
   const [homeId, setHomeId] = useState('')
@@ -80,6 +86,7 @@ export function TeamConsole() {
 
   function selectUser(user: PortalUser) {
     setSelectedUserId(user.id)
+    setSelectedRole(isPharmacyRole(user.role) ? PHARMACY_ROLE : PARTNER_ROLE)
     setAssignedPharmacist(user.assignedPharmacist)
     setHomeName(user.homeName)
     setHomeId(user.homeId)
@@ -143,7 +150,7 @@ export function TeamConsole() {
     const response = await fetch('/api/admin/users', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userId: selectedUserId, assignedPharmacist, homeName, homeId }),
+      body: JSON.stringify({ userId: selectedUserId, role: selectedRole, assignedPharmacist, homeName, homeId }),
     })
     const data = await response.json().catch(() => null)
     if (!response.ok) {
@@ -151,9 +158,20 @@ export function TeamConsole() {
       setBusy(false)
       return
     }
-    setUsers((current) => current.map((user) => (user.id === selectedUserId ? { ...user, assignedPharmacist, homeName, homeId } : user)))
+    const pharmacy = isPharmacyRole(selectedRole)
+    setUsers((current) =>
+      current.map((user) =>
+        user.id === selectedUserId
+          ? { ...user, role: selectedRole, assignedPharmacist, homeName, homeId: pharmacy ? '' : homeId }
+          : user,
+      ),
+    )
+    if (pharmacy) {
+      setHomeId('')
+      setHomeName('')
+    }
     setBusy(false)
-    toast.success('Assignment saved.')
+    toast.success(pharmacy ? 'Pharmacy access saved.' : 'Assignment saved.')
   }
 
   return (
@@ -294,7 +312,7 @@ export function TeamConsole() {
               )}
             </Card>
 
-            <Card className="mt-6" eyebrow="Portal users" title="Assign client and pharmacist">
+            <Card className="mt-6" eyebrow="Portal users" title="Assign access level and client">
               <form onSubmit={saveAssignment} className="space-y-4">
                 <div>
                   <label htmlFor="assignment-user" className="mb-2 block text-sm font-medium">Account</label>
@@ -306,25 +324,37 @@ export function TeamConsole() {
                   >
                     <option value="">Select a portal user</option>
                     {users.map((user) => (
-                      <option key={user.id} value={user.id}>{user.name} — {user.email}</option>
+                      <option key={user.id} value={user.id}>{user.name} — {user.email} ({roleLabel(user.role)})</option>
                     ))}
                   </select>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="assignment-home" className="mb-2 block text-sm font-medium">Client (home scope)</label>
-                    <select id="assignment-home" value={homeId} onChange={(event) => { const next = homes.find((home) => home.id === event.target.value); setHomeId(event.target.value); setHomeName(next?.name ?? '') }} className={field}>
-                      <option value="">Unassigned</option>
-                      {homes.map((home) => (
-                        <option key={home.id} value={home.id}>{home.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="assigned-pharmacist" className="mb-2 block text-sm font-medium">Assigned pharmacist</label>
-                    <input id="assigned-pharmacist" value={assignedPharmacist} onChange={(event) => setAssignedPharmacist(event.target.value)} placeholder="Dr. Priya Raman, RPh" className={field} />
-                  </div>
+                <div>
+                  <label htmlFor="assignment-role" className="mb-2 block text-sm font-medium">Access level</label>
+                  <select id="assignment-role" value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)} className={field}>
+                    <option value={PARTNER_ROLE}>Nursing home partner</option>
+                    <option value={PHARMACY_ROLE}>Pharmacy team (chat with homes)</option>
+                  </select>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    The pharmacy team signs in to the pharmacy console and can reply to — and start — conversations with every nursing home.
+                  </p>
                 </div>
+                {!isPharmacyRole(selectedRole) && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="assignment-home" className="mb-2 block text-sm font-medium">Client (home scope)</label>
+                      <select id="assignment-home" value={homeId} onChange={(event) => { const next = homes.find((home) => home.id === event.target.value); setHomeId(event.target.value); setHomeName(next?.name ?? '') }} className={field}>
+                        <option value="">Unassigned</option>
+                        {homes.map((home) => (
+                          <option key={home.id} value={home.id}>{home.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="assigned-pharmacist" className="mb-2 block text-sm font-medium">Assigned pharmacist</label>
+                      <input id="assigned-pharmacist" value={assignedPharmacist} onChange={(event) => setAssignedPharmacist(event.target.value)} placeholder="Dr. Priya Raman, RPh" className={field} />
+                    </div>
+                  </div>
+                )}
                 <button type="submit" disabled={busy} className="h-11 bg-forest px-5 text-sm font-semibold text-cream hover:bg-forest-deep disabled:opacity-50">Save assignment</button>
               </form>
             </Card>

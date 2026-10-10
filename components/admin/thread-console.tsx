@@ -1,26 +1,44 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, Send } from 'lucide-react'
+import { AlertTriangle, Loader2, Plus, Send, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/common/toast'
 
-type Thread = { id: string; subject: string; resident_ref: string; urgent: boolean; created_by: string; last_message_at: string; member: { name: string; home: string } | null }
+type Thread = {
+  id: string
+  subject: string
+  resident_ref: string
+  urgent: boolean
+  created_by: string
+  last_message_at: string
+  homeName?: string
+  member: { name: string; home: string } | null
+}
 type Message = { id: string; thread_id: string; sender_role: string; sender_name: string; body: string; urgent: boolean; read_at: string | null; created_at: string }
+type Home = { id: string; name: string; city?: string }
 
 const clock = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const homeLabel = (thread: Thread) => thread.homeName || thread.member?.home || 'Unassigned home'
 
-export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: string }) {
+export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = false }: { endpoint?: string; allowNew?: boolean }) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
   const [messages, setMessages] = useState<Message[]>([])
+  const [homes, setHomes] = useState<Home[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [urgent, setUrgent] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [newHomeId, setNewHomeId] = useState('')
+  const [newSubject, setNewSubject] = useState('')
+  const [newResident, setNewResident] = useState('')
+  const [newMessage, setNewMessage] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const load = async () => {
     const response = await fetch(endpoint)
@@ -28,10 +46,11 @@ export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: 
       setLoading(false)
       return
     }
-    const data: { threads: Thread[]; messages: Message[] } = await response.json()
-    setThreads(data.threads)
-    setMessages(data.messages)
-    setActiveId((current) => current ?? data.threads[0]?.id ?? null)
+    const data: { threads: Thread[]; messages: Message[]; homes?: Home[] } = await response.json()
+    setThreads(data.threads ?? [])
+    setMessages(data.messages ?? [])
+    if (data.homes) setHomes(data.homes)
+    setActiveId((current) => current ?? data.threads?.[0]?.id ?? null)
     setLoading(false)
   }
 
@@ -74,10 +93,115 @@ export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: 
     void load()
   }
 
+  const startConversation = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const message = newMessage.trim()
+    if (!newHomeId) {
+      toast.error('Choose a nursing home to message.')
+      return
+    }
+    if (!message) {
+      toast.error('Write the first message.')
+      return
+    }
+    setCreating(true)
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ homeId: newHomeId, subject: newSubject, residentRef: newResident, message, urgent }),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok) {
+      toast.error(data?.error ?? 'Conversation could not be started.')
+      setCreating(false)
+      return
+    }
+    if (data?.thread?.id) setActiveId(data.thread.id)
+    setNewHomeId('')
+    setNewSubject('')
+    setNewResident('')
+    setNewMessage('')
+    setUrgent(false)
+    setShowNew(false)
+    setCreating(false)
+    toast.success('Conversation started with the nursing home.')
+    await load()
+  }
+
   return (
     <div className="grid border border-hairline bg-paper lg:grid-cols-[20rem_1fr]">
       <div className="border-b border-hairline lg:border-r lg:border-b-0">
-        <p className="eyebrow border-b border-hairline p-4 text-forest-soft/80">Conversations</p>
+        <div className="flex items-center justify-between gap-2 border-b border-hairline p-4">
+          <p className="eyebrow text-forest-soft/80">Conversations</p>
+          {allowNew && (
+            <button
+              type="button"
+              onClick={() => setShowNew((value) => !value)}
+              className="inline-flex h-9 items-center gap-1.5 border border-hairline px-3 text-xs font-semibold text-forest hover:bg-mint"
+            >
+              {showNew ? <X className="size-3.5" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
+              {showNew ? 'Cancel' : 'New'}
+            </button>
+          )}
+        </div>
+
+        {allowNew && showNew && (
+          <form onSubmit={startConversation} className="space-y-3 border-b border-hairline bg-cream p-4">
+            <div>
+              <label htmlFor="new-home" className="mb-1 block text-xs font-medium">Nursing home</label>
+              <select
+                id="new-home"
+                value={newHomeId}
+                onChange={(event) => setNewHomeId(event.target.value)}
+                className="h-10 w-full border border-hairline bg-paper px-3 text-sm focus:border-forest focus:outline-none"
+              >
+                <option value="">{homes.length === 0 ? 'No nursing homes yet' : 'Select a nursing home'}</option>
+                {homes.map((home) => (
+                  <option key={home.id} value={home.id}>{home.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="new-subject" className="mb-1 block text-xs font-medium">Subject</label>
+              <input
+                id="new-subject"
+                value={newSubject}
+                onChange={(event) => setNewSubject(event.target.value)}
+                placeholder="Medication supply"
+                className="h-10 w-full border border-hairline bg-paper px-3 text-sm focus:border-forest focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-resident" className="mb-1 block text-xs font-medium">Resident ID or initials</label>
+              <input
+                id="new-resident"
+                value={newResident}
+                onChange={(event) => setNewResident(event.target.value)}
+                placeholder="e.g. 2B-014"
+                className="h-10 w-full border border-hairline bg-paper px-3 font-mono text-sm focus:border-forest focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-message" className="mb-1 block text-xs font-medium">First message</label>
+              <textarea
+                id="new-message"
+                value={newMessage}
+                onChange={(event) => setNewMessage(event.target.value)}
+                rows={3}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:border-forest focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creating}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 bg-forest text-sm font-semibold text-cream hover:bg-forest-deep disabled:opacity-50"
+            >
+              {creating ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
+              Start conversation
+            </button>
+          </form>
+        )}
+
         <ul className="max-h-[26rem] divide-y divide-hairline overflow-y-auto">
           {loading && <li className="p-4 text-sm text-muted-foreground">Loading…</li>}
           {!loading && threads.length === 0 && <li className="p-4 text-sm text-muted-foreground">No conversations yet.</li>}
@@ -93,7 +217,10 @@ export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: 
                   <span className="truncate text-sm font-medium">{thread.subject}</span>
                   {thread.urgent && <span className="bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>}
                 </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{thread.member?.name ?? 'Portal user'}{thread.member?.home ? ` · ${thread.member.home}` : ''}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {homeLabel(thread)}
+                  {thread.member?.name ? ` · ${thread.member.name}` : ''}
+                </p>
               </button>
             </li>
           ))}
@@ -108,7 +235,7 @@ export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: 
                 <p className="font-semibold">{activeThread.subject}</p>
                 <p className="font-mono text-xs text-forest-soft">{activeThread.resident_ref || 'No resident reference'}</p>
               </div>
-              <span className="text-xs text-muted-foreground">{activeThread.member?.name ?? 'Portal user'}</span>
+              <span className="text-xs text-muted-foreground">{homeLabel(activeThread)}</span>
             </div>
             <ol className="flex-1 space-y-4 overflow-y-auto p-5">
               {threadMessages.length === 0 && <li className="text-sm text-muted-foreground">No messages yet.</li>}
@@ -154,7 +281,9 @@ export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: 
             </form>
           </>
         ) : (
-          <div className="grid flex-1 place-items-center p-10 text-center text-sm text-muted-foreground">Select a conversation to reply.</div>
+          <div className="grid flex-1 place-items-center p-10 text-center text-sm text-muted-foreground">
+            {allowNew ? 'Select a conversation or start a new one with a nursing home.' : 'Select a conversation to reply.'}
+          </div>
         )}
       </div>
     </div>

@@ -32,7 +32,7 @@ export async function GET() {
   const service = adminClient()
   const [{ data, error }, { data: profiles }] = await Promise.all([
     service.auth.admin.listUsers({ perPage: 200 }),
-    service.from('profiles').select('id, home_id, home_name'),
+    service.from('profiles').select('id, home_id, home_name, role'),
   ])
   if (error) return NextResponse.json({ error: 'Unable to load portal users.' }, { status: 500 })
 
@@ -50,7 +50,7 @@ export async function GET() {
           assignedPharmacist: candidate.user_metadata?.assigned_pharmacist ?? '',
           homeName: row?.home_name ?? candidate.user_metadata?.home_name ?? '',
           homeId: row?.home_id ?? '',
-          role: candidate.user_metadata?.portal_role ?? candidate.app_metadata?.role ?? 'Authorized partner',
+          role: row?.role ?? candidate.user_metadata?.portal_role ?? candidate.app_metadata?.role ?? 'Authorized partner',
         }
       }),
   )
@@ -66,18 +66,28 @@ export async function PATCH(request: Request) {
   const assignedPharmacist = String(body.assignedPharmacist ?? '').trim()
   const homeName = String(body.homeName ?? '').trim()
   const homeId = String(body.homeId ?? '').trim()
-  if (!userId || !assignedPharmacist) return NextResponse.json({ error: 'User and assigned pharmacist are required.' }, { status: 400 })
+  const role = String(body.role ?? '').trim()
+  if (!userId) return NextResponse.json({ error: 'Select an account to update.' }, { status: 400 })
 
   const service = adminClient()
-  const result = await service.auth.admin.updateUserById(userId, {
-    user_metadata: { assigned_pharmacist: assignedPharmacist, home_name: homeName },
-  })
+  const metadata = {
+    user_metadata: { assigned_pharmacist: assignedPharmacist, home_name: homeName, ...(role ? { portal_role: role } : {}) },
+    ...(role ? { app_metadata: { role } } : {}),
+  }
+  const result = await service.auth.admin.updateUserById(userId, metadata)
   if (result.error) return NextResponse.json({ error: 'Unable to update the user assignment.' }, { status: 500 })
+
+  const isPharmacy = role.toLowerCase() === 'pharmacy'
+  const profileUpdate: Record<string, unknown> = {
+    home_name: homeName,
+    home_id: isPharmacy ? null : homeId || null,
+  }
+  if (role) profileUpdate.role = role
 
   const { error: profileError } = await service
     .from('profiles')
-    .update({ home_name: homeName, home_id: homeId || null })
+    .update(profileUpdate)
     .eq('id', userId)
   if (profileError) return NextResponse.json({ error: 'Auth metadata saved, but the portal profile could not be updated.' }, { status: 503 })
-  return NextResponse.json({ ok: true, assignedPharmacist, homeName, homeId })
+  return NextResponse.json({ ok: true, assignedPharmacist, homeName, homeId, role })
 }
