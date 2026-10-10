@@ -72,12 +72,7 @@ function PasswordField({
   )
 }
 
-const passwordRules = [
-  { test: (p: string) => p.length >= 14, label: '14+ characters' },
-  { test: (p: string) => /[A-Z]/.test(p) && /[a-z]/.test(p), label: 'Upper & lower case' },
-  { test: (p: string) => /\d/.test(p), label: 'A number' },
-  { test: (p: string) => /[^A-Za-z0-9]/.test(p), label: 'A symbol' },
-]
+const passwordRules = [{ test: (p: string) => p.length >= 8, label: '8+ characters' }]
 
 function MfaInput({ onComplete }: { onComplete: () => void }) {
   const [digits, setDigits] = useState<string[]>(Array(6).fill(''))
@@ -413,7 +408,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                   if (message.includes('already') || message.includes('registered') || message.includes('exists')) {
                     setError('This email is already registered. Use Sign in instead.')
                   } else if (message.includes('password') || message.includes('weak')) {
-                    setError('Choose a stronger password with 14+ characters, upper and lower case, a number, and a symbol.')
+                    setError('Choose a password with at least 8 characters.')
                   } else if (message.includes('rate') || message.includes('too many')) {
                     setError('Too many attempts. Please wait a few minutes and try again.')
                   } else if (message.includes('not authorized') || message.includes('email_address_not_authorized')) {
