@@ -138,7 +138,10 @@ create or replace function public.set_updated_at() returns trigger language plpg
 begin new.updated_at = now(); return new; end;
 $$;
 
-create or replace function public.handle_new_user() returns trigger language plpgsql security invoker set search_path = public as $$
+-- SECURITY DEFINER is required: the trigger runs while Supabase Auth inserts into
+-- auth.users (as supabase_auth_admin), which has no privileges on public.profiles and
+-- would be blocked by RLS — sign-up then fails with "Database error saving new user".
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id, full_name, role, home_name)
   values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''), 'Authorized partner', coalesce(new.raw_user_meta_data ->> 'home_name', ''))

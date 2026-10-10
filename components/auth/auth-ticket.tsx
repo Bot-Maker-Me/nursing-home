@@ -415,6 +415,8 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                     setError('This Supabase project only allows approved email addresses. Ask the administrator to allow this email or use the project email provider.')
                   } else if (message.includes('api key') || message.includes('apikey')) {
                     setError('This site is missing its Supabase connection key. Ask the administrator to set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then redeploy.')
+                  } else if (message.includes('database error')) {
+                    setError('Your account could not be saved. The database needs the latest setup SQL (supabase/fix-permissions.sql) to be run in Supabase.')
                   } else if (message.includes('invalid') && message.includes('email')) {
                     setError('Enter a valid work email address.')
                   } else {
