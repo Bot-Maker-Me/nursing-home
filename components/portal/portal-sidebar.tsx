@@ -39,9 +39,6 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
                 className={cn('size-2 shrink-0', active ? 'bg-[#f0d36b]' : 'border border-current opacity-60')}
               />
               <span className="flex-1">{item.label}</span>
-              {item.badge ? (
-                <span className="bg-terracotta px-1.5 font-mono text-[11px] font-medium text-white">{item.badge}</span>
-              ) : null}
             </Link>
           </li>
         )
