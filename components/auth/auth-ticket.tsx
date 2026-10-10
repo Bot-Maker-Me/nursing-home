@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { ArrowRight, Check, Eye, EyeOff, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient, supabasePublishableKey, supabaseUrl } from '@/lib/supabase/client'
 
 type Mode = 'signin' | 'activate'
-type Step = 'credentials' | 'mfa' | 'ready'
+type Step = 'credentials' | 'ready'
 
 const inputClass =
   'h-12 w-full border border-hairline bg-cream px-4 text-base text-foreground placeholder:text-muted-foreground/70 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20'
@@ -73,72 +73,6 @@ function PasswordField({
 }
 
 const passwordRules = [{ test: (p: string) => p.length >= 8, label: '8+ characters' }]
-
-function MfaInput({ onComplete }: { onComplete: () => void }) {
-  const [digits, setDigits] = useState<string[]>(Array(6).fill(''))
-  const refs = useRef<(HTMLInputElement | null)[]>([])
-
-  const update = (i: number, value: string) => {
-    const v = value.replace(/\D/g, '').slice(-1)
-    const next = [...digits]
-    next[i] = v
-    setDigits(next)
-    if (v && i < 5) refs.current[i + 1]?.focus()
-  }
-
-  const complete = digits.every(Boolean)
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (complete) onComplete()
-      }}
-    >
-      <fieldset>
-        <legend className="text-sm font-medium">6-digit code from your authenticator app</legend>
-        <div className="mt-3 grid grid-cols-6 gap-2">
-          {digits.map((d, i) => (
-            <input
-              key={i}
-              ref={(el) => {
-                refs.current[i] = el
-              }}
-              value={d}
-              onChange={(e) => update(i, e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Backspace' && !digits[i] && i > 0) refs.current[i - 1]?.focus()
-              }}
-              inputMode="numeric"
-              autoComplete={i === 0 ? 'one-time-code' : 'off'}
-              aria-label={`Digit ${i + 1}`}
-              className="h-14 w-full border border-hairline bg-cream text-center font-mono text-2xl focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20"
-            />
-          ))}
-        </div>
-      </fieldset>
-      <button
-        type="submit"
-        disabled={!complete}
-        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-3 bg-forest font-semibold text-cream hover:bg-forest-deep disabled:opacity-40"
-      >
-        Verify and continue
-        <ArrowRight className="size-4" aria-hidden="true" />
-      </button>
-    </form>
-  )
-}
-
-function QrPlaceholder() {
-  const cells = '1110111010011101101010111001101011100101110100111011010101110011010111001011101'
-  return (
-    <div className="grid size-28 shrink-0 grid-cols-9 gap-px border border-hairline bg-cream p-2" aria-hidden="true">
-      {cells.split('').map((c, i) => (
-        <span key={i} className={c === '1' ? 'bg-forest' : 'bg-transparent'} />
-      ))}
-    </div>
-  )
-}
 
 function AccountReady({ name }: { name: string }) {
   const firstName = name.trim().split(' ')[0] || 'there'
@@ -205,11 +139,6 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
 
   const rulesMet = passwordRules.every((r) => r.test(password)) && password === confirm
 
-  const onMfaComplete = () => {
-    if (mode === 'signin') router.push('/portal')
-    else setStep('ready')
-  }
-
   return (
     <div className="w-full max-w-4xl">
       <div className="mb-4 flex flex-col gap-3 border border-white/15 bg-white/5 px-4 py-3 text-sm text-cream/80 sm:flex-row sm:items-center sm:justify-between">
@@ -233,11 +162,10 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
               {(
                 [
                   ['credentials', 'Invitation & password'],
-                  ['mfa', 'Authenticator'],
                   ['ready', 'Account ready'],
                 ] as const
               ).map(([s, label], i) => {
-                const order = ['credentials', 'mfa', 'ready']
+                const order = ['credentials', 'ready']
                 const done = order.indexOf(step) > i
                 const current = step === s
                 return (
@@ -264,7 +192,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
             </div>
             <div>
               <dt className="eyebrow text-forest/60">Verification</dt>
-              <dd className="mt-1 font-mono">MFA required</dd>
+              <dd className="mt-1 font-mono">Email & password</dd>
             </div>
           </dl>
           <div className="hidden h-12 gap-[3px] md:flex" aria-hidden="true">
@@ -435,7 +363,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                     return
                   }
                 }
-                setStep('mfa')
+                setStep('ready')
               }}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -517,41 +445,10 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                 disabled={!rulesMet}
                 className="inline-flex h-12 w-full items-center justify-center gap-3 bg-forest font-semibold text-cream hover:bg-forest-deep disabled:opacity-40"
               >
-                Next: set up MFA
+                Activate account
                 <ArrowRight className="size-4" aria-hidden="true" />
               </button>
             </form>
-          )}
-
-          {step === 'mfa' && (
-            <div className="mt-8">
-              <h1 className="text-3xl font-bold tracking-[-0.03em]">
-                {mode === 'activate' ? 'Link your authenticator.' : 'One more check.'}
-              </h1>
-              <p className="mt-1 mb-6 text-sm text-muted-foreground">
-                {mode === 'activate'
-                  ? 'Scan this code with Google Authenticator, Microsoft Authenticator, or 1Password, then enter the 6 digits it shows.'
-                  : 'Every account uses multi-factor sign-in.'}
-              </p>
-              {mode === 'activate' && (
-                <div className="mb-6 flex items-center gap-5 border border-hairline bg-cream/60 p-4">
-                  <QrPlaceholder />
-                  <div className="min-w-0 text-sm">
-                    <p className="eyebrow text-muted-foreground">{"Can't scan?"}</p>
-                    <p className="mt-1">Enter this setup key manually:</p>
-                    <p className="mt-2 break-all font-mono text-xs tracking-widest text-forest">JBSW Y3DP EHPK 3PXP</p>
-                  </div>
-                </div>
-              )}
-              <MfaInput onComplete={onMfaComplete} />
-              <button
-                type="button"
-                onClick={() => setStep('credentials')}
-                className="mt-4 text-sm text-muted-foreground underline underline-offset-4"
-              >
-                Back
-              </button>
-            </div>
           )}
 
           {step === 'ready' && <AccountReady name={name} />}

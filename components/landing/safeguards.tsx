@@ -4,7 +4,7 @@ import { ArrowUpRight } from 'lucide-react'
 const items = [
   { k: 'Residency', v: 'Hosted in Canada', d: 'Health information is stored and processed only in Canadian regions.' },
   { k: 'Isolation', v: 'One home, one scope', d: 'Every record is bound to its home, enforced in the database and the API.' },
-  { k: 'Identity', v: 'MFA for everyone', d: 'Multi-factor sign-in, idle logout for shared stations, instant deactivation.' },
+  { k: 'Identity', v: 'Invite-only access', d: 'Invitation-gated sign-up, idle logout for shared stations, instant deactivation.' },
   { k: 'Audit', v: 'Append-only trail', d: 'Logins, document views, messages and exports are recorded immutably.' },
 ]
 
