@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { ArrowRight, Check, Eye, EyeOff, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Check, Eye, EyeOff, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient, supabasePublishableKey, supabaseUrl } from '@/lib/supabase/client'
 
@@ -49,25 +49,45 @@ function PasswordField({
   onToggle: () => void
   autoComplete: string
 }) {
+  const [capsLock, setCapsLock] = useState(false)
+
+  const detectCapsLock = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (typeof event.getModifierState === 'function') setCapsLock(event.getModifierState('CapsLock'))
+  }
+
   return (
-    <div className="relative">
-      <Field
-        id={id}
-        label={label}
-        type={visible ? 'text' : 'password'}
-        autoComplete={autoComplete}
-        required
-        value={value}
-        onChange={onChange}
-      />
-      <button
-        type="button"
-        aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-        onClick={onToggle}
-        className="absolute right-3 bottom-3 text-muted-foreground hover:text-forest"
-      >
-        {visible ? <EyeOff className="size-5" aria-hidden="true" /> : <Eye className="size-5" aria-hidden="true" />}
-      </button>
+    <div>
+      <div className="relative">
+        <Field
+          id={id}
+          label={label}
+          type={visible ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+          value={value}
+          onChange={onChange}
+          onKeyDown={detectCapsLock}
+          onKeyUp={detectCapsLock}
+          onBlur={() => setCapsLock(false)}
+        />
+        <button
+          type="button"
+          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          onClick={onToggle}
+          className="absolute right-3 bottom-3 text-muted-foreground hover:text-forest"
+        >
+          {visible ? <EyeOff className="size-5" aria-hidden="true" /> : <Eye className="size-5" aria-hidden="true" />}
+        </button>
+      </div>
+      {capsLock && (
+        <p role="status" className="mt-2 flex items-center gap-1.5 text-xs text-terracotta">
+          <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+          Caps Lock is on — letters will be typed in capitals.
+        </p>
+      )}
     </div>
   )
 }
