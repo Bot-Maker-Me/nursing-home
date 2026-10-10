@@ -11,7 +11,7 @@ type Message = { id: string; thread_id: string; sender_role: string; sender_name
 
 const clock = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-export function ThreadConsole() {
+export function ThreadConsole({ endpoint = '/api/admin/threads' }: { endpoint?: string }) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
@@ -23,7 +23,7 @@ export function ThreadConsole() {
   const [sending, setSending] = useState(false)
 
   const load = async () => {
-    const response = await fetch('/api/admin/threads')
+    const response = await fetch(endpoint)
     if (!response.ok) {
       setLoading(false)
       return
@@ -57,7 +57,7 @@ export function ThreadConsole() {
     const message = draft.trim()
     if (!activeId || !message) return
     setSending(true)
-    const response = await fetch('/api/admin/threads', {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ threadId: activeId, message, urgent }),

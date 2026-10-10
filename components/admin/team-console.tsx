@@ -37,6 +37,7 @@ export function TeamConsole() {
   const [entityDetail, setEntityDetail] = useState('')
 
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('Authorized partner')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [assignedPharmacist, setAssignedPharmacist] = useState('')
   const [homeName, setHomeName] = useState('')
@@ -119,7 +120,7 @@ export function TeamConsole() {
   const createInvite = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    const response = await fetch('/api/admin/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) })
+    const response = await fetch('/api/admin/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: inviteEmail, role: inviteRole }) })
     const data = await response.json().catch(() => null)
     if (!response.ok) {
       toast.error(data?.error ?? 'Unable to create invitation.')
@@ -260,6 +261,11 @@ export function TeamConsole() {
               <form onSubmit={createInvite} className="flex flex-col gap-3 sm:flex-row">
                 <label htmlFor="invite-email" className="sr-only">Invite by email</label>
                 <input id="invite-email" type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="partner@carehome.ca" className={`${field} flex-1`} />
+                <label htmlFor="invite-role" className="sr-only">Invitation role</label>
+                <select id="invite-role" value={inviteRole} onChange={(event) => setInviteRole(event.target.value)} className={`${field} sm:w-60`}>
+                  <option value="Authorized partner">Nursing home (partner)</option>
+                  <option value="Pharmacy">Pharmacy</option>
+                </select>
                 <button type="submit" disabled={busy} className="h-11 bg-forest px-5 text-sm font-semibold text-cream hover:bg-forest-deep disabled:opacity-50">Create invitation</button>
               </form>
               {invites.length > 0 && (

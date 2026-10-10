@@ -11,7 +11,7 @@ function tableError(error: { code?: string; message: string }, action: 'access' 
 
 export async function GET() {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const { data, error } = await context.supabase
     .from('invitations')
@@ -23,12 +23,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const body = await request.json().catch(() => null)
   const email = String(body?.email ?? '').trim().toLowerCase()
   if (!email || !email.includes('@')) return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
 
+  const role = String(body?.role ?? 'Authorized partner')
+  const homeName = String(body?.homeName ?? (role.toLowerCase() === 'pharmacy' ? "Henderson's Pharmacy" : 'Maple Grove LTC · Wing B'))
   const code = `HM-${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`
   const { data, error } = await context.supabase
     .from('invitations')
@@ -36,8 +38,8 @@ export async function POST(request: Request) {
       email,
       code,
       created_by: context.userId,
-      home_name: String(body?.homeName ?? 'Maple Grove LTC · Wing B'),
-      role: String(body?.role ?? 'Authorized partner'),
+      home_name: homeName,
+      role,
     })
     .select('code, email, expires_at')
     .single()
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const { id } = await request.json().catch(() => ({ id: '' }))
   if (!id) return NextResponse.json({ error: 'An invitation id is required.' }, { status: 400 })

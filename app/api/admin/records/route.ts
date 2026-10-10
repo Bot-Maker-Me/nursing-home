@@ -8,7 +8,7 @@ function scopeColumn(scopeType: string) {
 
 export async function GET(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const url = new URL(request.url)
   const scopeType = url.searchParams.get('scopeType') === 'pharmacy' ? 'pharmacy' : 'client'
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const body = await request.json().catch(() => null)
   const section = body?.section as SectionKey
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const id = new URL(request.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'A record id is required.' }, { status: 400 })

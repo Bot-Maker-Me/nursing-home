@@ -13,6 +13,9 @@ export default async function PortalLayout({ children }: { children: React.React
     .eq('id', user.id)
     .maybeSingle()
 
+  const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
+  if (role === 'pharmacy') redirect('/pharmacy')
+
   return (
     <div className="min-h-dvh lg:flex">
       <PortalSidebar

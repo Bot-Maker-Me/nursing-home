@@ -15,6 +15,16 @@ There are **three separate things** to set up. They don't depend on each other's
      grants; without them they fail with 500s even though the lists load.
 3. Confirm in **Table Editor**: `profiles`, `homes`, `pharmacies`, `invitations`,
    `chat_threads`, `portal_messages`, `portal_documents`, `managed_records`.
+3b. (Optional) Create the **pharmacy** account — a non-admin login that only gets the
+   conversation view at `/pharmacy`. Invite it from **/admin → User accounts → Invite a
+   portal user** and pick **Pharmacy** as the role, or set an existing profile's role:
+   ```sql
+   update public.profiles set role = 'pharmacy' where id = (
+     select id from auth.users where email = 'pharmacy@yourdomain.ca'
+   );
+   ```
+   Signing in with that account lands on `/pharmacy` (chat only — no admin console).
+
 4. Create your first admin:
    - **Authentication → Users → Add user → Create new user** (email + a password you choose, tick **Auto confirm user**).
    - Then in SQL Editor (replace the email):

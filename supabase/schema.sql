@@ -165,9 +165,14 @@ language sql security definer set search_path = public stable as $$
   select p.pharmacy_id from public.profiles p where p.id = auth.uid();
 $$;
 
+create or replace function public.is_pharmacy() returns boolean
+language sql security definer set search_path = public stable as $$
+  select exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) = 'pharmacy');
+$$;
+
 create or replace function public.can_access_thread(tid uuid) returns boolean
 language sql security definer set search_path = public stable as $$
-  select public.is_admin() or exists (
+  select public.is_admin() or public.is_pharmacy() or exists (
     select 1 from public.chat_threads t
     where t.id = tid and (t.created_by = auth.uid() or t.home_id = public.current_home_id())
   );
@@ -204,13 +209,13 @@ create policy "Admins manage pharmacies" on public.pharmacies for all to authent
 -- chat_threads
 drop policy if exists "Read scoped threads" on public.chat_threads;
 create policy "Read scoped threads" on public.chat_threads for select to authenticated
-  using (public.is_admin() or created_by = (select auth.uid()) or home_id = public.current_home_id());
+  using (public.is_admin() or public.is_pharmacy() or created_by = (select auth.uid()) or home_id = public.current_home_id());
 drop policy if exists "Start own threads" on public.chat_threads;
 create policy "Start own threads" on public.chat_threads for insert to authenticated
   with check (created_by = (select auth.uid()) and (home_id = public.current_home_id() or home_id is null));
 drop policy if exists "Update scoped threads" on public.chat_threads;
 create policy "Update scoped threads" on public.chat_threads for update to authenticated
-  using (public.is_admin() or created_by = (select auth.uid()) or home_id = public.current_home_id());
+  using (public.is_admin() or public.is_pharmacy() or created_by = (select auth.uid()) or home_id = public.current_home_id());
 
 -- portal_messages
 drop policy if exists "Users can read their own portal messages" on public.portal_messages;
@@ -221,7 +226,7 @@ create policy "Users can send their own portal messages" on public.portal_messag
   with check (user_id = (select auth.uid()) and sender_role = 'home');
 drop policy if exists "Admins can send pharmacy messages" on public.portal_messages;
 create policy "Admins can send pharmacy messages" on public.portal_messages for insert to authenticated
-  with check (public.is_admin());
+  with check (public.is_admin() or public.is_pharmacy());
 drop policy if exists "Scoped users can mark messages read" on public.portal_messages;
 create policy "Scoped users can mark messages read" on public.portal_messages for update to authenticated
   using (public.is_admin() or public.can_access_thread(thread_id) or user_id = (select auth.uid())) with check (true);

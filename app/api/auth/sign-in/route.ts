@@ -37,5 +37,6 @@ export async function POST(request: Request) {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
   const profileRole = typeof profile?.role === 'string' ? profile.role.toLowerCase() : ''
   const role = profileRole || metadataRole
-  return NextResponse.json({ redirect: role === 'admin' ? '/admin' : '/portal' })
+  const redirect = role === 'admin' ? '/admin' : role === 'pharmacy' ? '/pharmacy' : '/portal'
+  return NextResponse.json({ redirect })
 }

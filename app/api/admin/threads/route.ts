@@ -1,58 +1,21 @@
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
-function serviceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createSupabaseClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-}
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-  const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
-  if (role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  return { supabase, user }
-}
+import { createAdminClient, requireAdmin } from '@/lib/supabase/admin'
+import { loadConversations, sendPharmacyReply } from '@/lib/chat-server'
 
 export async function GET() {
-  const result = await requireAdmin()
-  if ('error' in result) return result.error
+  const context = await requireAdmin()
+  if (!context.ok) return context.response
 
-  const [threadsResponse, messagesResponse] = await Promise.all([
-    result.supabase.from('chat_threads').select('id, subject, resident_ref, urgent, home_id, created_by, last_message_at, created_at').order('last_message_at', { ascending: false }),
-    result.supabase.from('portal_messages').select('id, thread_id, sender_role, sender_name, body, urgent, read_at, created_at').order('created_at', { ascending: true }),
-  ])
-  if (threadsResponse.error || messagesResponse.error) {
+  const result = await loadConversations(context.supabase, createAdminClient())
+  if (!result.ok) {
     return NextResponse.json({ error: 'Chat data is not available until the messaging migration is applied.' }, { status: 503 })
   }
-
-  // Best-effort member labels via the service-role client (admin-only route).
-  const members: Record<string, { name: string; email: string; home: string }> = {}
-  const service = serviceClient()
-  if (service) {
-    const { data } = await service.from('profiles').select('id, full_name, home_name')
-    for (const profile of data ?? []) {
-      members[profile.id] = { name: profile.full_name || 'Portal user', email: '', home: profile.home_name || '' }
-    }
-  }
-
-  return NextResponse.json({
-    threads: (threadsResponse.data ?? []).map((thread) => ({
-      ...thread,
-      member: members[thread.created_by] ?? null,
-    })),
-    messages: messagesResponse.data ?? [],
-  })
+  return NextResponse.json(result.data)
 }
 
 export async function POST(request: Request) {
-  const result = await requireAdmin()
-  if ('error' in result) return result.error
+  const context = await requireAdmin()
+  if (!context.ok) return context.response
 
   const body = await request.json().catch(() => null)
   const threadId = String(body?.threadId ?? '')
@@ -62,37 +25,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A conversation and message are required.' }, { status: 400 })
   }
 
-  const { data: thread, error: threadError } = await result.supabase
-    .from('chat_threads')
-    .select('id, created_by')
-    .eq('id', threadId)
-    .maybeSingle()
-  if (threadError || !thread) return NextResponse.json({ error: 'Conversation not found.' }, { status: 404 })
-
-  const { data, error } = await result.supabase
-    .from('portal_messages')
-    .insert({
-      user_id: thread.created_by,
-      thread_id: threadId,
-      sender_role: 'pharmacy',
-      sender_name: 'Henderson’s Pharmacy',
-      body: message,
-      urgent,
-    })
-    .select('id, thread_id, sender_role, sender_name, body, urgent, read_at, created_at')
-    .single()
-  if (error) return NextResponse.json({ error: 'Message could not be sent.' }, { status: 503 })
-
-  await result.supabase
-    .from('chat_threads')
-    .update({ last_message_at: new Date().toISOString(), urgent: false })
-    .eq('id', threadId)
-  await result.supabase
-    .from('portal_messages')
-    .update({ read_at: new Date().toISOString() })
-    .eq('thread_id', threadId)
-    .eq('sender_role', 'home')
-    .is('read_at', null)
-
-  return NextResponse.json(data)
+  const result = await sendPharmacyReply(context.supabase, { threadId, message, urgent })
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.reason === 'not_found' ? 'Conversation not found.' : 'Message could not be sent.' },
+      { status: result.reason === 'not_found' ? 404 : 503 },
+    )
+  }
+  return NextResponse.json(result.data)
 }

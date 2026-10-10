@@ -8,7 +8,7 @@ function scopeColumn(scopeType: string) {
 
 export async function POST(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const body = await request.json().catch(() => null)
   const section = body?.section as SectionKey

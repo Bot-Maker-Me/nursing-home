@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/supabase/admin'
 
 export async function GET() {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const [homes, pharmacies] = await Promise.all([
     context.supabase.from('homes').select('id, name, city, status').order('name'),
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const context = await requireAdmin()
-  if (!context.admin) return context.response
+  if (!context.ok) return context.response
 
   const body = await request.json().catch(() => null)
   const type = body?.type === 'pharmacy' ? 'pharmacy' : 'client'
