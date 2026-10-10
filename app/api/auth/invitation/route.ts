@@ -6,6 +6,9 @@ function getAdminClient() {
 }
 
 export async function POST(request: Request) {
+  if (!(process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2)) {
+    return NextResponse.json({ error: 'Invitation activation is not configured on the server yet.' }, { status: 503 })
+  }
   const { code, email, userId, fullName } = await request.json()
   const normalizedCode = String(code ?? '').trim().toUpperCase()
   const normalizedEmail = String(email ?? '').trim().toLowerCase()

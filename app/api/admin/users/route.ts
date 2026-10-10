@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { SUPABASE_URL } from '@/lib/supabase/env'
+
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2 ?? ''
+const SERVICE_HINT = 'User management needs the SUPABASE_SERVICE_ROLE_KEY environment variable (set it in Vercel and .env.local).'
 
 function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
+  return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
 async function requireAdmin() {
@@ -27,6 +27,7 @@ export async function GET() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
   const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!SERVICE_KEY) return NextResponse.json({ error: SERVICE_HINT }, { status: 503 })
 
   const service = adminClient()
   const [{ data, error }, { data: profiles }] = await Promise.all([
@@ -58,6 +59,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const { user, error } = await requireAdmin()
   if (error || !user) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
+  if (!SERVICE_KEY) return NextResponse.json({ error: SERVICE_HINT }, { status: 503 })
 
   const body = await request.json()
   const userId = String(body.userId ?? '')

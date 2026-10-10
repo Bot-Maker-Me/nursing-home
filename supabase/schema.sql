@@ -227,12 +227,22 @@ drop policy if exists "Admins manage records" on public.managed_records;
 create policy "Admins manage records" on public.managed_records for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
+-- invitations: managed by admins through RLS (no service key required)
+drop policy if exists "Admins manage invitations" on public.invitations;
+create policy "Admins manage invitations" on public.invitations for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
 -- ============================================================
 -- 4. Grants
 -- ============================================================
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to service_role;
+
 grant select on public.profiles to authenticated;
-grant select on public.homes to authenticated;
-grant select on public.pharmacies to authenticated;
+grant select, insert, update, delete on public.homes to authenticated;
+grant select, insert, update, delete on public.pharmacies to authenticated;
+grant select, insert, update, delete on public.managed_records to authenticated;
+grant select, insert, update, delete on public.invitations to authenticated;
 grant select, insert, update on public.chat_threads to authenticated;
 grant select, insert, update on public.portal_messages to authenticated;
 grant select on public.portal_documents to authenticated;
