@@ -413,6 +413,8 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                     setError('Too many attempts. Please wait a few minutes and try again.')
                   } else if (message.includes('not authorized') || message.includes('email_address_not_authorized')) {
                     setError('This Supabase project only allows approved email addresses. Ask the administrator to allow this email or use the project email provider.')
+                  } else if (message.includes('api key') || message.includes('apikey')) {
+                    setError('This site is missing its Supabase connection key. Ask the administrator to set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then redeploy.')
                   } else if (message.includes('invalid') && message.includes('email')) {
                     setError('Enter a valid work email address.')
                   } else {

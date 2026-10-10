@@ -2,7 +2,13 @@
 const nextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ayvpdpthxwplbsmhpbva.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.JWT,
+    // Fall back through every anon-key env name the host might inject, in case one is
+    // present but empty. An empty value here is what stripped the `apikey` header.
+    NEXT_PUBLIC_SUPABASE_ANON_KEY:
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.JWT ||
+      '',
   },
   async headers() {
     return [
