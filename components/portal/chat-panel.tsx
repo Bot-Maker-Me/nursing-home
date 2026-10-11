@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Loader2, Mail, Plus, Send, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -46,6 +46,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   const [newMessage, setNewMessage] = useState('')
   const [creating, setCreating] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const channelName = useId().replace(/[^a-zA-Z0-9]/g, '')
 
   const activeThread = threads.find((thread) => thread.id === activeId) ?? null
 
@@ -82,7 +83,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
 
   useEffect(() => {
     const channel = supabase
-      .channel('portal-chat')
+      .channel(`portal-chat-${channelName}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_messages' }, () => {
         void loadThreads()
         if (activeId) void loadMessages(activeId)
@@ -91,7 +92,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [supabase, activeId, loadMessages, loadThreads])
+  }, [supabase, activeId, loadMessages, loadThreads, channelName])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Bell, MessageSquare } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -16,6 +16,10 @@ export function NotificationBell() {
   const supabase = useMemo(() => createClient(), [])
   const [threads, setThreads] = useState<Thread[]>([])
   const [open, setOpen] = useState(false)
+  // The Supabase browser client is a singleton and the bell renders twice (desktop +
+  // mobile). Each instance needs its own channel topic, otherwise the second instance
+  // reuses the already-subscribed channel and `.on()` throws.
+  const channelName = useId().replace(/[^a-zA-Z0-9]/g, '')
 
   useEffect(() => {
     let active = true
@@ -27,14 +31,14 @@ export function NotificationBell() {
     }
     void load()
     const channel = supabase
-      .channel('portal-notifications')
+      .channel(`portal-notifications-${channelName}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_messages' }, () => void load())
       .subscribe()
     return () => {
       active = false
       void supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, channelName])
 
   const total = threads.reduce((sum, thread) => sum + thread.unread, 0)
 

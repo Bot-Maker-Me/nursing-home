@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { AlertTriangle, Loader2, Plus, Send, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -49,6 +49,7 @@ export function ThreadConsole({
   const [newResident, setNewResident] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [creating, setCreating] = useState(false)
+  const channelName = useId().replace(/[^a-zA-Z0-9]/g, '')
 
   const load = async () => {
     const response = await fetch(endpoint)
@@ -73,13 +74,13 @@ export function ThreadConsole({
 
   useEffect(() => {
     const channel = supabase
-      .channel('admin-chat')
+      .channel(`admin-chat-${channelName}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_messages' }, () => void load())
       .subscribe()
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, channelName])
 
   const visibleThreads = homeFilter
     ? threads.filter((thread) => !filterHomeId || thread.home_id === filterHomeId)
