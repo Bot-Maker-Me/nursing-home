@@ -175,8 +175,8 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   }
 
   return (
-    <div className="mt-8 grid border border-hairline bg-paper lg:grid-cols-[20rem_1fr]">
-      <div className="border-b border-hairline lg:border-r lg:border-b-0">
+    <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="min-w-0 border-b border-hairline lg:border-r lg:border-b-0">
         <div className="flex items-center justify-between gap-2 border-b border-hairline p-4">
           <div>
             <p className="eyebrow text-forest-soft/80">Conversations</p>
@@ -268,7 +268,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
         </ul>
       </div>
 
-      <div className="flex min-h-[22rem] flex-col lg:min-h-[32rem]">
+      <div className="flex min-h-[22rem] min-w-0 flex-col lg:min-h-[32rem]">
         {activeThread ? (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline p-5">
@@ -281,7 +281,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
               )}
             </div>
 
-            <ol className="flex-1 space-y-5 overflow-y-auto p-5">
+            <ol className="min-w-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto p-5">
               {loadingMessages && <li className="text-sm text-muted-foreground">Loading messages…</li>}
               {!loadingMessages && messages.length === 0 && (
                 <li className="text-sm text-muted-foreground">No messages in this conversation yet.</li>
