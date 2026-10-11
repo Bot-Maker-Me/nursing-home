@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
+import { NotificationBell } from '@/components/portal/notification-bell'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -11,8 +12,9 @@ export const portalNav = [
   { href: '/portal', label: 'Dashboard' },
   { href: '/portal/messages', label: 'Connect with Pharmacy' },
   { href: '/portal/deliveries', label: 'Delivery Tracking' },
-  { href: '/portal/cutoffs', label: 'Order Cut-offs' },
+  { href: '/portal/cutoffs', label: 'Operating hours & Order Cut-offs' },
   { href: '/portal/policies', label: 'Policies & Procedures' },
+  { href: '/portal/education', label: 'Education & Training' },
   { href: '/portal/contacts', label: 'Emergency & Contacts' },
   { href: '/portal/account', label: 'Account' },
 ]
@@ -80,9 +82,12 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-8 bg-sidebar px-4 py-6 lg:flex">
-        <Link href="/portal" className="px-1">
-          <Logo tone="light" />
-        </Link>
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/portal" className="px-1">
+            <Logo tone="light" />
+          </Link>
+          <NotificationBell />
+        </div>
         <div><p className="eyebrow text-sidebar-foreground/60">Home</p><div className="mt-2"><HomeLabel homeName={profile.homeName} /></div></div>
         <nav aria-label="Portal" className="flex-1 overflow-y-auto">
           <NavList />
@@ -91,12 +96,15 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
       </aside>
 
       <details className="group sticky top-0 z-20 bg-sidebar lg:hidden">
-        <summary className="flex h-16 cursor-pointer list-none items-center justify-between px-4 [&::-webkit-details-marker]:hidden">
+        <summary className="flex h-16 cursor-pointer list-none items-center justify-between gap-2 px-4 [&::-webkit-details-marker]:hidden">
           <Logo tone="light" />
-          <span className="text-sm text-cream/80 group-open:hidden">Menu</span>
-          <span className="hidden text-sm text-cream/80 group-open:inline">Close</span>
+          <span className="flex items-center gap-1">
+            <NotificationBell />
+            <span className="text-sm text-cream/80 group-open:hidden">Menu</span>
+            <span className="hidden text-sm text-cream/80 group-open:inline">Close</span>
+          </span>
         </summary>
-        <div className="space-y-6 border-t border-sidebar-border px-4 py-6">
+        <div className="max-h-[calc(100dvh-4rem)] space-y-6 overflow-y-auto border-t border-sidebar-border px-4 py-6">
           <div><p className="eyebrow text-sidebar-foreground/60">Home</p><div className="mt-2"><HomeLabel homeName={profile.homeName} /></div></div>
           <nav aria-label="Portal mobile">
             <NavList />

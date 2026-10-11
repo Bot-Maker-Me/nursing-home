@@ -119,7 +119,7 @@ create index if not exists portal_documents_user_created_idx on public.portal_do
 
 create table if not exists public.managed_records (
   id uuid primary key default gen_random_uuid(),
-  section text not null check (section in ('policies','deliveries','cutoffs','contacts')),
+  section text not null check (section in ('policies','deliveries','cutoffs','contacts','education')),
   home_id uuid references public.homes(id) on delete cascade,
   pharmacy_id uuid references public.pharmacies(id) on delete cascade,
   title text not null default '',
@@ -129,6 +129,12 @@ create table if not exists public.managed_records (
   updated_at timestamptz not null default now(),
   constraint managed_records_scope check ((home_id is not null) <> (pharmacy_id is not null))
 );
+-- "create table if not exists" is a no-op on an older managed_records table, so make sure
+-- the section constraint allows the education section on existing databases too.
+alter table public.managed_records drop constraint if exists managed_records_section_check;
+alter table public.managed_records
+  add constraint managed_records_section_check
+  check (section in ('policies','deliveries','cutoffs','contacts','education'));
 create index if not exists managed_records_scope_idx on public.managed_records(section, home_id, pharmacy_id);
 
 -- ============================================================

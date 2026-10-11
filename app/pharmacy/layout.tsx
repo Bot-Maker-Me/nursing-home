@@ -23,7 +23,7 @@ export default async function PharmacyLayout({ children }: { children: React.Rea
     <div className="min-h-dvh lg:flex">
       <PharmacySidebar name={name} pharmacyName={profile?.home_name || "Henderson's Pharmacy"} />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 lg:px-12 lg:py-14">{children}</div>
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-14">{children}</div>
       </main>
     </div>
   )

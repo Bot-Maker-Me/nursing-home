@@ -123,6 +123,48 @@ export const holidays = [
   { date: '2027-01-01', name: 'New Year’s Day', note: 'Emergency only' },
 ]
 
+export const operatingHours = [
+  { label: 'Monday – Friday', hours: '8:00 AM – 9:00 PM' },
+  { label: 'Saturday & Sunday', hours: '9:00 AM – 5:00 PM' },
+  { label: 'All statutory holidays', hours: '9:00 AM – 5:00 PM' },
+]
+
+export type EducationResource = {
+  id: string
+  title: string
+  type: 'video' | 'pdf' | 'link'
+  url: string
+  description: string
+  category: string
+}
+
+export const educationResources: EducationResource[] = [
+  {
+    id: 'edu-1',
+    title: 'Safe medication administration — refresher',
+    type: 'video',
+    url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U',
+    description: 'A short walkthrough of the five rights of medication administration and documentation.',
+    category: 'Medication safety',
+  },
+  {
+    id: 'edu-2',
+    title: 'MAR documentation standards',
+    type: 'pdf',
+    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    description: 'Reference guide for completing the medication administration record correctly.',
+    category: 'Documentation',
+  },
+  {
+    id: 'edu-3',
+    title: 'Ordering cut-offs and STAT process',
+    type: 'link',
+    url: 'https://www.hendersonsportal.ca/training/ordering',
+    description: 'How to place routine, urgent and after-hours orders through the portal.',
+    category: 'Ordering',
+  },
+]
+
 export type HomeUser = {
   name: string
   email: string

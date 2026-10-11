@@ -13,9 +13,9 @@ export function PageHeader({
 }) {
   return (
     <header className="flex flex-col gap-6 border-b border-hairline pb-8 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p className="text-xs text-muted-foreground">{crumb}</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-[-0.045em] sm:text-5xl">{title}</h1>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-muted-foreground">{crumb}</p>
+        <h1 className="mt-3 text-3xl font-bold tracking-[-0.045em] sm:text-4xl lg:text-5xl">{title}</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
       </div>
       {aside ?? <CutoffPill />}

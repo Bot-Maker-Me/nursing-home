@@ -12,6 +12,7 @@ type Thread = {
   resident_ref: string
   urgent: boolean
   created_by: string
+  home_id?: string | null
   last_message_at: string
   homeName?: string
   member: { name: string; home: string } | null
@@ -22,12 +23,21 @@ type Home = { id: string; name: string; city?: string }
 const clock = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 const homeLabel = (thread: Thread) => thread.homeName || thread.member?.home || 'Unassigned home'
 
-export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = false }: { endpoint?: string; allowNew?: boolean }) {
+export function ThreadConsole({
+  endpoint = '/api/admin/threads',
+  allowNew = false,
+  homeFilter = false,
+}: {
+  endpoint?: string
+  allowNew?: boolean
+  homeFilter?: boolean
+}) {
   const supabase = useMemo(() => createClient(), [])
   const toast = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [homes, setHomes] = useState<Home[]>([])
+  const [filterHomeId, setFilterHomeId] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [urgent, setUrgent] = useState(false)
@@ -49,7 +59,10 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
     const data: { threads: Thread[]; messages: Message[]; homes?: Home[] } = await response.json()
     setThreads(data.threads ?? [])
     setMessages(data.messages ?? [])
-    if (data.homes) setHomes(data.homes)
+    if (data.homes) {
+      setHomes(data.homes)
+      if (homeFilter) setFilterHomeId((current) => current || data.homes?.[0]?.id || '')
+    }
     setActiveId((current) => current ?? data.threads?.[0]?.id ?? null)
     setLoading(false)
   }
@@ -68,7 +81,19 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
     }
   }, [supabase])
 
-  const activeThread = threads.find((thread) => thread.id === activeId) ?? null
+  const visibleThreads = homeFilter
+    ? threads.filter((thread) => !filterHomeId || thread.home_id === filterHomeId)
+    : threads
+
+  // Keep the open conversation within the selected nursing home.
+  useEffect(() => {
+    if (!homeFilter) return
+    if (visibleThreads.length > 0 && !visibleThreads.some((thread) => thread.id === activeId)) {
+      setActiveId(visibleThreads[0].id)
+    }
+  }, [homeFilter, filterHomeId, threads, activeId])
+
+  const activeThread = visibleThreads.find((thread) => thread.id === activeId) ?? null
   const threadMessages = messages.filter((message) => message.thread_id === activeId)
 
   const reply = async (event: React.FormEvent) => {
@@ -136,7 +161,10 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
           {allowNew && (
             <button
               type="button"
-              onClick={() => setShowNew((value) => !value)}
+              onClick={() => {
+                setShowNew((value) => !value)
+                if (homeFilter && filterHomeId) setNewHomeId(filterHomeId)
+              }}
               className="inline-flex h-9 items-center gap-1.5 border border-hairline px-3 text-xs font-semibold text-forest hover:bg-mint"
             >
               {showNew ? <X className="size-3.5" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
@@ -144,6 +172,27 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
             </button>
           )}
         </div>
+
+        {homeFilter && (
+          <div className="border-b border-hairline bg-cream p-4">
+            <label htmlFor="home-filter" className="eyebrow block text-muted-foreground">
+              Nursing home
+            </label>
+            <select
+              id="home-filter"
+              value={filterHomeId}
+              onChange={(event) => setFilterHomeId(event.target.value)}
+              className="mt-2 h-10 w-full border border-hairline bg-paper px-3 text-sm focus:border-forest focus:outline-none"
+            >
+              <option value="">All nursing homes</option>
+              {homes.map((home) => (
+                <option key={home.id} value={home.id}>
+                  {home.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {allowNew && showNew && (
           <form onSubmit={startConversation} className="space-y-3 border-b border-hairline bg-cream p-4">
@@ -202,10 +251,10 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
           </form>
         )}
 
-        <ul className="max-h-[26rem] divide-y divide-hairline overflow-y-auto">
+        <ul className="max-h-72 divide-y divide-hairline overflow-y-auto lg:max-h-[26rem]">
           {loading && <li className="p-4 text-sm text-muted-foreground">Loading…</li>}
-          {!loading && threads.length === 0 && <li className="p-4 text-sm text-muted-foreground">No conversations yet.</li>}
-          {threads.map((thread) => (
+          {!loading && visibleThreads.length === 0 && <li className="p-4 text-sm text-muted-foreground">No conversations yet.</li>}
+          {visibleThreads.map((thread) => (
             <li key={thread.id}>
               <button
                 type="button"
@@ -231,8 +280,8 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
         {activeThread ? (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline p-5">
-              <div>
-                <p className="font-semibold">{activeThread.subject}</p>
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{activeThread.subject}</p>
                 <p className="font-mono text-xs text-forest-soft">{activeThread.resident_ref || 'No resident reference'}</p>
               </div>
               <span className="text-xs text-muted-foreground">{homeLabel(activeThread)}</span>
@@ -271,7 +320,7 @@ export function ThreadConsole({ endpoint = '/api/admin/threads', allowNew = fals
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="Reply to the home…"
                   aria-label="Reply"
-                  className="h-12 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest focus:outline-none"
+                  className="h-12 min-w-0 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest focus:outline-none"
                 />
                 <button type="submit" disabled={!draft.trim() || sending} className="inline-flex h-12 items-center gap-2 bg-forest px-5 text-sm font-semibold text-cream disabled:opacity-50">
                   {sending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Send className="size-4" aria-hidden="true" />}

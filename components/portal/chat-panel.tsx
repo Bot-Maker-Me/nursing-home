@@ -234,7 +234,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
           </form>
         )}
 
-        <ul className="max-h-[28rem] divide-y divide-hairline overflow-y-auto" aria-label="Threads">
+        <ul className="max-h-72 divide-y divide-hairline overflow-y-auto lg:max-h-[28rem]" aria-label="Threads">
           {loadingThreads && <li className="p-4 text-sm text-muted-foreground">Loading conversations…</li>}
           {!loadingThreads && threads.length === 0 && (
             <li className="p-4 text-sm text-muted-foreground">No conversations yet. Start one with the pharmacy.</li>
@@ -267,7 +267,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
         </ul>
       </div>
 
-      <div className="flex min-h-[32rem] flex-col">
+      <div className="flex min-h-[22rem] flex-col lg:min-h-[32rem]">
         {activeThread ? (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline p-5">
@@ -289,7 +289,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 const mine = message.sender_role === 'home'
                 return (
                   <li key={message.id} className={cn('flex', mine && 'justify-end')}>
-                    <div className={cn('max-w-md border p-4', mine ? 'border-forest bg-forest text-cream' : 'border-hairline bg-cream')}>
+                    <div className={cn('max-w-[85%] border p-4 sm:max-w-md', mine ? 'border-forest bg-forest text-cream' : 'border-hairline bg-cream')}>
                       <p className={cn('flex items-center gap-2 text-xs', mine ? 'text-cream/70' : 'text-muted-foreground')}>
                         {message.sender_name} · <span className="font-mono">{clock(message.created_at)}</span>
                         {message.urgent && (
@@ -328,7 +328,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="Write to the pharmacy…"
-                  className="h-12 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest focus:outline-none"
+                  className="h-12 min-w-0 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest focus:outline-none"
                 />
                 <button
                   type="submit"

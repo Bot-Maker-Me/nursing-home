@@ -1,4 +1,4 @@
-export type SectionKey = 'policies' | 'deliveries' | 'cutoffs' | 'contacts'
+export type SectionKey = 'policies' | 'deliveries' | 'cutoffs' | 'contacts' | 'education'
 
 export type SectionDef = {
   key: SectionKey
@@ -25,7 +25,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     key: 'cutoffs',
-    label: 'Order cut-off times',
+    label: 'Operating hours & cut-offs',
     description: 'Weekly cut-off and delivery targets.',
     titleField: 'day',
     columns: ['day', 'cutoff', 'delivery'],
@@ -36,6 +36,13 @@ export const SECTIONS: SectionDef[] = [
     description: 'On-call and escalation contacts.',
     titleField: 'label',
     columns: ['label', 'role', 'phone', 'email', 'notes'],
+  },
+  {
+    key: 'education',
+    label: 'Education & Training',
+    description: 'Links, videos and PDFs for staff training. Videos play inline on the portal.',
+    titleField: 'title',
+    columns: ['title', 'type', 'url', 'description'],
   },
 ]
 
