@@ -28,17 +28,17 @@ export function PoliciesTable() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search title, section, or code…"
-            className="h-11 w-full border border-hairline bg-paper pr-3 pl-9 text-sm focus:border-forest focus:outline-none"
+            className="h-11 w-full border border-hairline bg-paper pr-3 pl-9 text-sm focus:border-forest"
           />
         </div>
         <span className="text-xs text-muted-foreground">
           {rows.length} of {policies.length} documents
         </span>
         <div className="ml-auto flex gap-2">
-          <button type="button" className="h-11 border border-hairline bg-paper px-4 text-sm">
+          <button type="button" className="h-11 rounded-field border border-hairline bg-paper px-4 text-sm">
             Filter
           </button>
-          <button type="button" className="h-11 border border-hairline bg-paper px-4 text-sm">
+          <button type="button" className="h-11 rounded-field border border-hairline bg-paper px-4 text-sm">
             Export CSV
           </button>
         </div>
@@ -73,7 +73,7 @@ export function PoliciesTable() {
                 <td className="px-4 py-4 font-mono text-xs">{p.pages}</td>
                 <td className="px-4 py-4">
                   {p.acknowledged ? (
-                    <span className="bg-mint px-2 py-0.5 text-xs font-medium text-forest">Acknowledged</span>
+                    <span className="rounded-badge inline-flex items-center bg-mint px-2 py-0.5 text-xs font-medium text-forest">Acknowledged</span>
                   ) : (
                     <span className="text-xs font-medium text-terracotta">Needs acknowledgement</span>
                   )}

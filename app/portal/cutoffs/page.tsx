@@ -1,10 +1,9 @@
 import { Card, PageHeader } from '@/components/portal/page-header'
-import { getPortalProfile } from '@/lib/auth'
+import { getTenantName } from '@/lib/auth'
 import { holidays, operatingHours, weeklySchedule } from '@/lib/sample-data'
 
 export default async function CutoffsPage() {
-  const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
 
   return (
     <>

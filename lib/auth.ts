@@ -51,3 +51,16 @@ export const getCurrentHome = cache(async (): Promise<CurrentHome | null> => {
   const withoutTheme = await supabase.from('homes').select('name').eq('id', profile.home_id).maybeSingle()
   return withoutTheme.data ? { name: withoutTheme.data.name as string, theme: null } : null
 })
+
+/**
+ * THE active-tenant name. Every breadcrumb, heading and tenant label must read from this
+ * one helper, so they can never disagree. The `homes` row (linked by `profiles.home_id`)
+ * is authoritative; `profiles.home_name` is a denormalised copy that can drift, so it is
+ * only a fallback when the account has no home linked yet.
+ */
+export const getTenantName = cache(async (): Promise<string> => {
+  const home = await getCurrentHome()
+  if (home?.name) return home.name
+  const profile = await getPortalProfile()
+  return profile?.home_name || 'Your home'
+})

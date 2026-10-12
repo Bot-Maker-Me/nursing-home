@@ -1,12 +1,12 @@
 import { Card, PageHeader } from '@/components/portal/page-header'
-import { getCurrentUser, getPortalProfile } from '@/lib/auth'
+import { getCurrentUser, getPortalProfile, getTenantName } from '@/lib/auth'
 
 export default async function AccountPage() {
   const user = await getCurrentUser()
   const profile = await getPortalProfile()
 
   const name = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Portal user'
-  const homeName = profile?.home_name || user?.user_metadata?.home_name || 'Assigned home'
+  const homeName = await getTenantName()
   const assignedPharmacist = user?.user_metadata?.assigned_pharmacist || 'Not assigned'
   const role = profile?.role || 'Authorized partner'
 

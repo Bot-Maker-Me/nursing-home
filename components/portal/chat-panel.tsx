@@ -201,7 +201,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 value={newSubject}
                 onChange={(event) => setNewSubject(event.target.value)}
                 placeholder="Medication supply"
-                className="h-10 w-full border border-hairline bg-paper px-3 text-sm focus:border-forest focus:outline-none"
+                className="h-10 w-full border border-hairline bg-paper px-3 text-sm focus:border-forest"
               />
             </div>
             <div>
@@ -211,7 +211,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 value={newResident}
                 onChange={(event) => setNewResident(event.target.value)}
                 placeholder="e.g. 2B-014"
-                className="h-10 w-full border border-hairline bg-paper px-3 font-mono text-sm focus:border-forest focus:outline-none"
+                className="h-10 w-full border border-hairline bg-paper px-3 font-mono text-sm focus:border-forest"
               />
             </div>
             <div>
@@ -221,7 +221,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 value={newMessage}
                 onChange={(event) => setNewMessage(event.target.value)}
                 rows={3}
-                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:border-forest focus:outline-none"
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:border-forest"
               />
             </div>
             <button
@@ -251,13 +251,13 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium">{thread.subject}</span>
                   {thread.urgent && (
-                    <span className="inline-flex items-center gap-1 bg-terracotta px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    <span className="rounded-badge inline-flex items-center gap-1 bg-terracotta px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                       <AlertTriangle className="size-3" aria-hidden="true" />
                       Urgent
                     </span>
                   )}
                   {!thread.urgent && thread.unread > 0 && (
-                    <span className="bg-terracotta px-1.5 font-mono text-[11px] text-white">{thread.unread}</span>
+                    <span className="rounded-badge bg-terracotta px-1.5 py-0.5 font-mono text-[11px] text-white">{thread.unread}</span>
                   )}
                 </div>
                 {thread.resident_ref && <p className="mt-1 font-mono text-xs text-forest-soft">{thread.resident_ref}</p>}
@@ -277,7 +277,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 <p className="font-mono text-xs text-forest-soft">{activeThread.resident_ref || 'No resident reference'}</p>
               </div>
               {activeThread.urgent && (
-                <span className="bg-terracotta px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Urgent</span>
+                <span className="rounded-badge bg-terracotta px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Urgent</span>
               )}
             </div>
 
@@ -290,11 +290,11 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 const mine = message.sender_role === 'home'
                 return (
                   <li key={message.id} className={cn('flex', mine && 'justify-end')}>
-                    <div className={cn('max-w-[85%] border p-4 sm:max-w-md', mine ? 'border-forest bg-forest text-cream' : 'border-hairline bg-cream')}>
+                    <div className={cn('max-w-[85%] rounded-card border p-4 sm:max-w-md', mine ? 'border-forest bg-forest text-cream' : 'border-hairline bg-cream')}>
                       <p className={cn('flex items-center gap-2 text-xs', mine ? 'text-cream/70' : 'text-muted-foreground')}>
                         {message.sender_name} · <span className="font-mono">{clock(message.created_at)}</span>
                         {message.urgent && (
-                          <span className="bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>
+                          <span className="rounded-badge bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>
                         )}
                       </p>
                       <p className="mt-1.5 text-sm leading-relaxed whitespace-pre-wrap">{message.body}</p>
@@ -316,7 +316,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                   onClick={() => setUrgent((value) => !value)}
                   aria-pressed={urgent}
                   className={cn(
-                    'grid size-12 place-items-center border',
+                    'grid size-12 place-items-center rounded-field border',
                     urgent ? 'border-terracotta bg-terracotta text-white' : 'border-hairline text-muted-foreground hover:bg-cream',
                   )}
                   aria-label="Flag as urgent"
@@ -329,7 +329,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="Write to the pharmacy…"
-                  className="h-12 min-w-0 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest focus:outline-none"
+                  className="h-12 min-w-0 flex-1 border border-hairline bg-cream px-4 text-sm focus:border-forest"
                 />
                 <button
                   type="submit"

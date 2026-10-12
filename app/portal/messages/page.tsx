@@ -1,10 +1,9 @@
 import { ChatPanel } from '@/components/portal/chat-panel'
 import { PageHeader } from '@/components/portal/page-header'
-import { getPortalProfile } from '@/lib/auth'
+import { getTenantName } from '@/lib/auth'
 
 export default async function MessagesPage() {
-  const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
 
   return (
     <>

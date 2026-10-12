@@ -67,7 +67,7 @@ export function NotificationBell() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-30 cursor-default"
           />
-          <div className="absolute right-0 z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] border border-hairline bg-paper text-foreground shadow-lg">
+          <div className="rounded-card absolute right-0 z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] border border-hairline bg-paper text-foreground shadow-lg">
             <p className="border-b border-hairline px-4 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Notifications
             </p>
@@ -87,7 +87,7 @@ export function NotificationBell() {
                         <span className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{thread.subject}</span>
                           {thread.urgent && (
-                            <span className="bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>
+                            <span className="rounded-badge bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>
                           )}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -95,7 +95,7 @@ export function NotificationBell() {
                         </span>
                       </span>
                       {thread.unread > 0 && (
-                        <span className="bg-mint px-1.5 font-mono text-[11px] text-forest">{thread.unread}</span>
+                        <span className="rounded-badge bg-mint px-1.5 font-mono text-[11px] text-forest">{thread.unread}</span>
                       )}
                     </Link>
                   </li>

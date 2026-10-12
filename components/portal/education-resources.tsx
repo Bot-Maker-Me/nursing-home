@@ -24,7 +24,7 @@ function embed(url: string): { kind: 'iframe' | 'video'; src: string } | null {
 function VideoResource({ resource }: { resource: Resource }) {
   const player = embed(resource.url)
   return (
-    <section className="border border-hairline bg-paper">
+    <section className="overflow-hidden rounded-card border border-hairline bg-paper">
       <div className="aspect-video w-full bg-forest-deep">
         {player?.kind === 'iframe' ? (
           <iframe
@@ -89,7 +89,7 @@ export function EducationResources({ resources }: { resources: Resource[] }) {
             <p className="max-w-sm text-sm text-muted-foreground">No guides or documents have been published yet.</p>
           </div>
         ) : (
-          <ul className="mt-5 divide-y divide-hairline border border-hairline bg-paper">
+          <ul className="mt-5 divide-y divide-hairline overflow-hidden rounded-card border border-hairline bg-paper">
             {documents.map((resource) => (
               <li key={resource.id}>
                 <a

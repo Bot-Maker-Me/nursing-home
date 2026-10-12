@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/portal/page-header'
 import { EducationResources, type Resource } from '@/components/portal/education-resources'
-import { getPortalProfile } from '@/lib/auth'
+import { getPortalProfile, getTenantName } from '@/lib/auth'
 import { educationResources } from '@/lib/sample-data'
 import { createClient } from '@/lib/supabase/server'
 
@@ -8,7 +8,7 @@ type RecordRow = { id: string; title: string; payload: Record<string, string> | 
 
 export default async function EducationPage() {
   const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
   const homeId = profile?.home_id ?? null
   const supabase = await createClient()
 

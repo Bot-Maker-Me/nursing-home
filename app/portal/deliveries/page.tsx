@@ -1,11 +1,10 @@
 import { ArrowUpRight } from 'lucide-react'
 import { Card, PageHeader, StatusPill } from '@/components/portal/page-header'
-import { getPortalProfile } from '@/lib/auth'
+import { getTenantName } from '@/lib/auth'
 import { deliveries } from '@/lib/sample-data'
 
 export default async function DeliveriesPage() {
-  const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
 
   return (
     <>

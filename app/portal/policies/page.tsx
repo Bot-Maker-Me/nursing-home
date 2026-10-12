@@ -1,14 +1,13 @@
 import { PageHeader } from '@/components/portal/page-header'
 import { PoliciesTable } from '@/components/portal/policies-table'
-import { getPortalProfile } from '@/lib/auth'
+import { getTenantName } from '@/lib/auth'
 
 export default async function PoliciesPage() {
-  const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
 
   return (
     <>
-      <div className="mb-8 flex flex-wrap items-center gap-3 bg-forest px-4 py-3 text-sm text-cream">
+      <div className="mb-8 flex flex-wrap items-center gap-3 rounded-card bg-forest px-4 py-3 text-sm text-cream">
         <span className="eyebrow text-marker">Updated</span>
         OR-03 Order cut-offs, STAT and after-hours requests — v5.0 effective 2026-10-01.
       </div>

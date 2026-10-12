@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -108,6 +109,9 @@ function HomeSection({ homeName, className }: { homeName: string; className?: st
 }
 
 export function PortalSidebar({ profile }: { profile: { name: string; role: string; homeName: string } }) {
+  const mobileMenu = useRef<HTMLDetailsElement>(null)
+  const closeMenu = () => mobileMenu.current?.removeAttribute('open')
+
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-8 bg-sidebar px-4 py-6 lg:flex">
@@ -124,7 +128,7 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
         <UserChip profile={profile} />
       </aside>
 
-      <details className="group sticky top-0 z-20 bg-sidebar lg:hidden">
+      <details ref={mobileMenu} className="group sticky top-0 z-20 bg-sidebar lg:hidden">
         <summary className="flex h-16 cursor-pointer list-none items-center justify-between gap-2 px-4 [&::-webkit-details-marker]:hidden">
           <Logo tone="light" />
           <span className="flex items-center gap-1">
@@ -136,7 +140,7 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
         <div className="max-h-[calc(100dvh-4rem)] space-y-6 overflow-y-auto border-t border-sidebar-border px-4 py-6">
           <HomeSection homeName={profile.homeName} />
           <nav aria-label="Portal mobile">
-            <NavList />
+            <NavList onNavigate={closeMenu} />
           </nav>
           <UserChip profile={profile} />
         </div>

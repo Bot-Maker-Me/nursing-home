@@ -1,6 +1,6 @@
 import { Phone } from 'lucide-react'
 import { Card, PageHeader } from '@/components/portal/page-header'
-import { getPortalProfile } from '@/lib/auth'
+import { getTenantName } from '@/lib/auth'
 import { currentHome } from '@/lib/sample-data'
 
 function CallButton({ number, label }: { number: string; label: string }) {
@@ -19,8 +19,7 @@ function CallButton({ number, label }: { number: string; label: string }) {
 }
 
 export default async function ContactsPage() {
-  const profile = await getPortalProfile()
-  const homeName = profile?.home_name || 'Your home'
+  const homeName = await getTenantName()
 
   return (
     <>
