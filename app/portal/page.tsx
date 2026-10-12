@@ -1,13 +1,12 @@
 import { FileText } from 'lucide-react'
 import { Card, PageHeader } from '@/components/portal/page-header'
+import { getCurrentUser, getPortalProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardPage() {
+  const user = await getCurrentUser()
+  const profile = await getPortalProfile()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('full_name, home_name').eq('id', user.id).maybeSingle()
-    : { data: null }
   const { data: documents } = user
     ? await supabase.from('portal_documents').select('id, name, mime_type, size_bytes, created_at, storage_path').eq('user_id', user.id).order('created_at', { ascending: false })
     : { data: [] }

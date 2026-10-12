@@ -1,14 +1,9 @@
 import { Card, PageHeader } from '@/components/portal/page-header'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser, getPortalProfile } from '@/lib/auth'
 
 export default async function AccountPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, role, home_name')
-    .eq('id', user?.id ?? '')
-    .maybeSingle()
+  const user = await getCurrentUser()
+  const profile = await getPortalProfile()
 
   const name = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Portal user'
   const homeName = profile?.home_name || user?.user_metadata?.home_name || 'Assigned home'

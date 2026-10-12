@@ -1,13 +1,9 @@
 import { ChatPanel } from '@/components/portal/chat-panel'
 import { PageHeader } from '@/components/portal/page-header'
-import { createClient } from '@/lib/supabase/server'
+import { getPortalProfile } from '@/lib/auth'
 
 export default async function MessagesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('home_name').eq('id', user.id).maybeSingle()
-    : { data: null }
+  const profile = await getPortalProfile()
   const homeName = profile?.home_name || 'Your home'
 
   return (

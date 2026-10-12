@@ -22,6 +22,8 @@ Project guidance for the Henderson's Pharmacy client portal. Keep this file accu
   - Custom utilities: `eyebrow` (uppercase label) and `paper-shadow`. Use `border-hairline`, `bg-paper`, `text-forest`, etc.
 - **Navigation & routing**: use `next/link` and `next/navigation` (`useRouter`, `usePathname`, `redirect`). Do NOT use `react-router`.
 - **Data & auth**: query Supabase through the existing clients — `lib/supabase/server.ts` (server/render), `lib/supabase/client.ts` (browser), and `lib/supabase/proxy.ts` (session refresh). Never instantiate a separate Supabase client inline.
+- **Session data**: in server components use the request-memoised helpers in `lib/auth.ts` (`getCurrentUser`, `getPortalProfile`, `getCurrentHome`) instead of calling `createClient()` + `auth.getUser()` in every page/layout — React `cache` dedupes them across a render to cut duplicate round trips.
+- **Rate limiting**: `lib/rate-limit.ts` (Upstash Redis over REST; env `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). It fails open when unconfigured. Apply it to write endpoints.
 - **Service role**: only use the service-role client (see `app/api/admin/*`) inside admin route handlers that call `requireAdmin()` first; never expose it to the browser.
 - **Fonts**: use the `next/font` setup already in `app/layout.tsx` (`--font-sans` → Inter, `--font-mono` → JetBrains Mono). Don't add new font loaders.
 - **State/outside data**: rely on React hooks (`useState`/`useEffect`) and server components. Don't introduce Redux, Zustand, React Query, etc. without approval.

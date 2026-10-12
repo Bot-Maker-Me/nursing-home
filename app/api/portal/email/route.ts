@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const PHARMACY_EMAIL = process.env.PHARMACY_EMAIL ?? 'pharmacy@hendersonsportal.ca'
 
@@ -7,6 +8,9 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limitResult = await rateLimit(`email:${user.id}`, { limit: 10, windowSeconds: 3600 })
+  if (!limitResult.ok) return rateLimitResponse(limitResult)
 
   const body = await request.json().catch(() => null)
   const subject = String(body?.subject ?? '').trim().slice(0, 160) || 'Portal message'

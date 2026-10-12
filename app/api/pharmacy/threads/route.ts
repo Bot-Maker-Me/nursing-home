@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient, requireStaff } from '@/lib/supabase/admin'
 import { loadConversations, sendPharmacyReply, startPharmacyThread } from '@/lib/chat-server'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function GET() {
   const context = await requireStaff(['pharmacy', 'admin'])
@@ -19,6 +20,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const context = await requireStaff(['pharmacy', 'admin'])
   if (!context.ok) return context.response
+
+  const limitResult = await rateLimit(`pharmacy-chat:${context.userId}`, { limit: 120, windowSeconds: 60 })
+  if (!limitResult.ok) return rateLimitResponse(limitResult)
 
   const body = await request.json().catch(() => null)
   const threadId = String(body?.threadId ?? '')

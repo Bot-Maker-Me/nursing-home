@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 type RouteContext = { params: Promise<{ threadId: string }> }
 
@@ -23,6 +24,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limitResult = await rateLimit(`messages:${user.id}`, { limit: 60, windowSeconds: 60 })
+  if (!limitResult.ok) return rateLimitResponse(limitResult)
 
   const body = await request.json().catch(() => null)
   const message = typeof body?.message === 'string' ? body.message.trim() : ''

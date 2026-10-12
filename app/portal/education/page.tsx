@@ -1,18 +1,16 @@
 import { PageHeader } from '@/components/portal/page-header'
 import { EducationResources, type Resource } from '@/components/portal/education-resources'
+import { getPortalProfile } from '@/lib/auth'
 import { educationResources } from '@/lib/sample-data'
 import { createClient } from '@/lib/supabase/server'
 
 type RecordRow = { id: string; title: string; payload: Record<string, string> | null }
 
 export default async function EducationPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('home_name, home_id').eq('id', user.id).maybeSingle()
-    : { data: null }
+  const profile = await getPortalProfile()
   const homeName = profile?.home_name || 'Your home'
   const homeId = profile?.home_id ?? null
+  const supabase = await createClient()
 
   const resources: Resource[] = educationResources.map((resource) => ({ ...resource }))
 
