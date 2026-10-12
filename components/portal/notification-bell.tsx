@@ -49,7 +49,7 @@ export function NotificationBell() {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label={`Notifications${total > 0 ? `, ${total} unread` : ''}`}
-        className="relative grid size-10 place-items-center text-sidebar-foreground/70 hover:text-white"
+        className="relative grid size-10 place-items-center text-sidebar-foreground/70 hover:text-sidebar-strong"
       >
         <Bell className="size-4" aria-hidden="true" />
         {total > 0 && (

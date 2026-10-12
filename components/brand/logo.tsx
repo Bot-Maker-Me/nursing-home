@@ -16,11 +16,11 @@ export function Logo({ tone = 'dark', className }: { tone?: 'dark' | 'light'; cl
       <span
         className={cn(
           'text-lg font-bold tracking-tight',
-          tone === 'dark' ? 'text-forest' : 'text-white',
+          tone === 'dark' ? 'text-forest' : 'text-sidebar-strong',
         )}
       >
         {"Henderson's"}
-        <span className={cn('font-normal', tone === 'dark' ? 'text-muted-foreground' : 'text-white/60')}>
+        <span className={cn('font-normal', tone === 'dark' ? 'text-muted-foreground' : 'text-sidebar-strong/60')}>
           {' '}
           portal
         </span>

@@ -23,13 +23,13 @@ const TONY_STACEY: HomeTheme = {
   slug: 'tony-stacey',
   name: "Tony Stacey Centre for Veterans' Care",
   tokens: {
-    // Brand — deeper, calmer crimson (#c8102e read too bright, especially on large areas)
-    '--brand': '#a8122f',
-    '--brand-dark': '#8b0f27',
-    '--brand-deep': '#6b0b1d',
+    // Brand — vivid crimson, one step deeper than #c8102e, kept out of large areas
+    '--brand': '#b8112d',
+    '--brand-dark': '#9c0e26',
+    '--brand-deep': '#7d0b1e',
     '--brand-tint': '#fdecef',
     '--on-brand': '#ffffff',
-    '--highlight': '#a8122f',
+    '--highlight': '#b8112d',
     '--marker': '#f2c94c',
 
     // Surfaces & text
@@ -46,28 +46,30 @@ const TONY_STACEY: HomeTheme = {
     '--status-out-bg': '#fdf3e2',
     '--status-out-ink': '#8a5a00',
     '--status-preparing-bg': '#fdecef',
-    '--status-preparing-ink': '#8b0f27',
+    '--status-preparing-ink': '#9c0e26',
     '--status-scheduled-ink': '#5f6368',
     '--danger-bg': '#fdecef',
-    '--danger-ink': '#8b0f27',
+    '--danger-ink': '#9c0e26',
 
-    // Sidebar
-    '--sidebar': '#8b0f27',
-    '--sidebar-foreground': '#ffe5ea',
-    '--sidebar-primary': '#ffffff',
-    '--sidebar-primary-foreground': '#6b0b1d',
-    '--sidebar-accent': '#6b0b1d',
+    // Sidebar — clean white. A full-height saturated red block reads either too bright
+    // or muddy/brown, so crimson is reserved for accents: active nav, marks and hover.
+    '--sidebar': '#ffffff',
+    '--sidebar-foreground': '#404652',
+    '--sidebar-strong': '#1a1a1a',
+    '--sidebar-primary': '#b8112d',
+    '--sidebar-primary-foreground': '#ffffff',
+    '--sidebar-accent': '#b8112d',
     '--sidebar-accent-foreground': '#ffffff',
-    '--sidebar-border': 'rgb(255 255 255 / 0.18)',
-    '--sidebar-ring': '#f2c94c',
-    '--sidebar-hover': 'rgb(255 255 255 / 0.12)',
+    '--sidebar-border': '#e7e7ea',
+    '--sidebar-ring': '#b8112d',
+    '--sidebar-hover': '#fdecef',
     '--sidebar-marker': '#f2c94c',
 
     // Marks on the sidebar (logo mark + notification badge)
-    '--logo-mark-bg': '#f2c94c',
-    '--logo-mark-ink': '#6b0b1d',
-    '--badge-bg': '#f2c94c',
-    '--badge-ink': '#6b0b1d',
+    '--logo-mark-bg': '#b8112d',
+    '--logo-mark-ink': '#ffffff',
+    '--badge-bg': '#b8112d',
+    '--badge-ink': '#ffffff',
 
     // Depth & shape → rounded cards, pill buttons, soft shadows
     '--shadow-color': '#e0e0e3',

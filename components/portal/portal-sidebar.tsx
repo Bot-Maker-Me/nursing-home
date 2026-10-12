@@ -64,7 +64,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function TenantCard({ homeName }: { homeName: string }) {
-  return <p className="tenant-card px-3 py-3 text-sm font-medium text-white">{homeName}</p>
+  return <p className="tenant-card px-3 py-3 text-sm font-medium text-sidebar-strong">{homeName}</p>
 }
 
 function UserChip({ profile }: { profile: { name: string; role: string } }) {
@@ -78,17 +78,17 @@ function UserChip({ profile }: { profile: { name: string; role: string } }) {
     .toUpperCase()
   return (
     <div className="flex items-center gap-3 border-t border-sidebar-border pt-4">
-      <span className="grid size-10 shrink-0 place-items-center rounded-avatar bg-marker font-mono text-sm font-semibold text-brand">
+      <span className="avatar-mark grid size-10 shrink-0 place-items-center rounded-avatar bg-marker font-mono text-sm font-semibold text-brand">
         {initials || 'P'}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-white">{profile.name}</p>
+        <p className="truncate text-sm font-medium text-sidebar-strong">{profile.name}</p>
         <p className="truncate text-xs text-sidebar-foreground/70">{profile.role}</p>
       </div>
       <button
         type="button"
         onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/sign-in' })}
-        className="grid size-10 shrink-0 place-items-center text-sidebar-foreground/70 hover:text-white"
+        className="grid size-10 shrink-0 place-items-center text-sidebar-foreground/70 hover:text-sidebar-strong"
         aria-label="Sign out"
       >
         <LogOut className="size-4" aria-hidden="true" />
@@ -128,13 +128,13 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
         <UserChip profile={profile} />
       </aside>
 
-      <details ref={mobileMenu} className="group sticky top-0 z-20 bg-sidebar lg:hidden">
+      <details ref={mobileMenu} className="portal-mobile-bar group sticky top-0 z-20 bg-sidebar lg:hidden">
         <summary className="flex h-16 cursor-pointer list-none items-center justify-between gap-2 px-4 [&::-webkit-details-marker]:hidden">
           <Logo tone="light" />
           <span className="flex items-center gap-1">
             <NotificationBell />
-            <span className="text-sm text-cream/80 group-open:hidden">Menu</span>
-            <span className="hidden text-sm text-cream/80 group-open:inline">Close</span>
+            <span className="text-sm text-sidebar-foreground/80 group-open:hidden">Menu</span>
+            <span className="hidden text-sm text-sidebar-foreground/80 group-open:inline">Close</span>
           </span>
         </summary>
         <div className="max-h-[calc(100dvh-4rem)] space-y-6 overflow-y-auto border-t border-sidebar-border px-4 py-6">
