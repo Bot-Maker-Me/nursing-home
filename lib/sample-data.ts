@@ -2,6 +2,8 @@ export type Home = {
   id: string
   name: string
   city: string
+  address?: string
+  phone?: string
   beds: number
   cutoff: string
   deliveryBy: string
@@ -47,6 +49,20 @@ export const homes: Home[] = [
     pharmacistPhone: '905-555-0163',
     afterHours: '905-555-0199',
     status: 'suspended',
+  },
+  {
+    id: 'HM-0201',
+    name: "Tony Stacey Centre for Veterans' Care",
+    city: 'Toronto, ON',
+    address: '59 Lawson Road, Toronto, Ontario M1C 2J1',
+    phone: '1-416-284-9235',
+    beds: 0,
+    cutoff: '17:00',
+    deliveryBy: '21:00',
+    pharmacist: 'Dr. Priya Raman, RPh',
+    pharmacistPhone: '1-416-284-9235',
+    afterHours: '905-555-0199',
+    status: 'active',
   },
 ]
 

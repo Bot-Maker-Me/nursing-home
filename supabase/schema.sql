@@ -28,20 +28,27 @@ create table if not exists public.homes (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   city text not null default '',
+  address text not null default '',
+  phone text not null default '',
   beds integer not null default 0,
   pharmacist text not null default '',
   pharmacist_phone text not null default '',
   after_hours text not null default '',
   status text not null default 'active' check (status in ('active','suspended')),
+  theme jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 -- "create table if not exists" is a no-op on an older homes table, so add any missing columns.
 alter table public.homes add column if not exists city text not null default '';
+alter table public.homes add column if not exists address text not null default '';
+alter table public.homes add column if not exists phone text not null default '';
 alter table public.homes add column if not exists beds integer not null default 0;
 alter table public.homes add column if not exists pharmacist text not null default '';
 alter table public.homes add column if not exists pharmacist_phone text not null default '';
 alter table public.homes add column if not exists after_hours text not null default '';
 alter table public.homes add column if not exists status text not null default 'active';
+-- Per-home custom theme, e.g. {"slug":"tony-stacey"} (see lib/home-themes.ts).
+alter table public.homes add column if not exists theme jsonb not null default '{}'::jsonb;
 
 create table if not exists public.pharmacies (
   id uuid primary key default gen_random_uuid(),
@@ -316,6 +323,23 @@ from (values
   ('Cedarview Residence','Oakville, ON',64,'Dr. Priya Raman, RPh','905-555-0163','905-555-0199','suspended')
 ) as seed(name, city, beds, pharmacist, pharmacist_phone, after_hours, status)
 where not exists (select 1 from public.homes);
+
+-- Tony Stacey Centre for Veterans' Care — registered with its own unique theme.
+insert into public.homes (name, city, address, phone, beds, pharmacist, pharmacist_phone, after_hours, status, theme)
+select
+  'Tony Stacey Centre for Veterans'' Care',
+  'Toronto, ON',
+  '59 Lawson Road, Toronto, Ontario M1C 2J1',
+  '1-416-284-9235',
+  0,
+  'Dr. Priya Raman, RPh',
+  '1-416-284-9235',
+  '905-555-0199',
+  'active',
+  '{"slug":"tony-stacey"}'::jsonb
+where not exists (
+  select 1 from public.homes where name = 'Tony Stacey Centre for Veterans'' Care'
+);
 
 -- ============================================================
 -- 8. Storage (wrapped so a privilege error can't abort the run)

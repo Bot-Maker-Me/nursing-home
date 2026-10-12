@@ -110,3 +110,29 @@
 @utility paper-shadow {
   box-shadow: 14px 14px 0 0 #e2e0d6;
 }
+
+/* ---------------------------------------------------------------------------
+   Per-home custom themes
+   Everything here is scoped to a themed home's portal shell via
+   `data-home-theme`, so a custom theme can never leak into another home, the
+   pharmacy/admin consoles or the public site.
+--------------------------------------------------------------------------- */
+[data-home-theme] {
+  background-color: var(--background);
+}
+
+[data-home-theme='tony-stacey'] section,
+[data-home-theme='tony-stacey'] .bg-paper {
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 2px rgb(27 20 22 / 6%);
+}
+
+[data-home-theme='tony-stacey'] .bg-cream,
+[data-home-theme='tony-stacey'] .bg-sidebar-accent {
+  border-radius: 0.5rem;
+}
+
+[data-home-theme='tony-stacey'] button.bg-forest,
+[data-home-theme='tony-stacey'] a.bg-forest {
+  border-radius: 9999px;
+}

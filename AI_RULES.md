@@ -34,3 +34,4 @@ Project guidance for the Henderson's Pharmacy client portal. Keep this file accu
 - Default to server components; add `'use client'` only for interactivity (state, effects, event handlers).
 - Session refresh runs through the Next 16 **`proxy.ts`** file (the renamed middleware). Do not create a `middleware.ts`.
 - After changing a component that a page should render, wire it into the relevant `app/**/page.tsx` so it actually appears.
+- **Per-home custom themes** live in `lib/home-themes.ts` (`HomeTheme` + `HOME_THEMES`) and are resolved/applied in `app/portal/layout.tsx` via `data-home-theme` + CSS-variable overrides, so a theme only affects that one home's portal — never other homes, the pharmacy/admin consoles, or the landing page. A home's theme is matched by the `theme` jsonb on its `homes` row (`{ "slug": "…" }`) or by name. Add theme-specific design polish as `[data-home-theme='<slug>']` rules in `app/globals.css`.
