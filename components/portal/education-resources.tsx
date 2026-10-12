@@ -81,9 +81,13 @@ export function EducationResources({ resources }: { resources: Resource[] }) {
         <h2 className="text-xl font-semibold tracking-tight">Guides, links & documents</h2>
         <p className="mt-1 text-sm text-muted-foreground">Downloadable policies and reference links for your team.</p>
         {documents.length === 0 ? (
-          <p className="mt-5 border border-dashed border-hairline py-10 text-center text-sm text-muted-foreground">
-            No guides or documents have been published yet.
-          </p>
+          <div className="mt-5 flex flex-col items-center gap-3 px-6 py-12 text-center">
+            <span className="grid size-12 place-items-center rounded-card bg-brand-tint text-brand">
+              <FileText className="size-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm font-semibold">No guides yet</p>
+            <p className="max-w-sm text-sm text-muted-foreground">No guides or documents have been published yet.</p>
+          </div>
         ) : (
           <ul className="mt-5 divide-y divide-hairline border border-hairline bg-paper">
             {documents.map((resource) => (

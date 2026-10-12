@@ -2,21 +2,34 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import {
+  CalendarClock,
+  FileText,
+  GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  MessagesSquare,
+  PhoneCall,
+  Truck,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { NotificationBell } from '@/components/portal/notification-bell'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
-export const portalNav = [
-  { href: '/portal', label: 'Dashboard' },
-  { href: '/portal/messages', label: 'Connect with Pharmacy' },
-  { href: '/portal/deliveries', label: 'Delivery Tracking' },
-  { href: '/portal/cutoffs', label: 'Operating hours & Order Cut-offs' },
-  { href: '/portal/policies', label: 'Policies & Procedures' },
-  { href: '/portal/education', label: 'Education & Training' },
-  { href: '/portal/contacts', label: 'Emergency & Contacts' },
-  { href: '/portal/account', label: 'Account' },
+type NavItem = { href: string; label: string; icon: LucideIcon }
+
+export const portalNav: NavItem[] = [
+  { href: '/portal', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/portal/messages', label: 'Connect with Pharmacy', icon: MessagesSquare },
+  { href: '/portal/deliveries', label: 'Delivery Tracking', icon: Truck },
+  { href: '/portal/cutoffs', label: 'Operating hours & Order Cut-offs', icon: CalendarClock },
+  { href: '/portal/policies', label: 'Policies & Procedures', icon: FileText },
+  { href: '/portal/education', label: 'Education & Training', icon: GraduationCap },
+  { href: '/portal/contacts', label: 'Emergency & Contacts', icon: PhoneCall },
+  { href: '/portal/account', label: 'Account', icon: UserRound },
 ]
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -25,22 +38,22 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
     <ul className="space-y-1">
       {portalNav.map((item) => {
         const active = item.href === '/portal' ? pathname === '/portal' : pathname.startsWith(item.href)
+        const Icon = item.icon
         return (
           <li key={item.href}>
             <Link
               href={item.href}
               onClick={onNavigate}
               aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex min-h-11 items-center gap-3 px-3 py-2 text-sm transition-colors',
-                active ? 'bg-sidebar-accent font-medium text-white' : 'text-sidebar-foreground/85 hover:bg-white/5 hover:text-white',
-              )}
+              className="nav-link flex min-h-11 items-center gap-3 px-3 py-2 text-sm transition-colors"
             >
-              <span
-                aria-hidden="true"
-                className={cn('size-2 shrink-0', active ? 'bg-[#f0d36b]' : 'border border-current opacity-60')}
-              />
+              {/* Default tenants keep the square bullet; themed tenants show a line icon. */}
+              <span aria-hidden="true" className={cn('nav-bullet size-2 shrink-0', active ? 'bg-marker' : 'border border-current opacity-60')} />
+              <Icon aria-hidden="true" className="nav-icon size-[18px] shrink-0" />
               <span className="flex-1">{item.label}</span>
+              {active && (
+                <span aria-hidden="true" className="nav-accent size-1.5 rounded-full bg-[var(--sidebar-marker)]" />
+              )}
             </Link>
           </li>
         )
@@ -49,8 +62,8 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function HomeLabel({ homeName }: { homeName: string }) {
-  return <p className="border border-sidebar-border bg-white/5 px-3 py-3 text-sm font-medium text-white">{homeName}</p>
+function TenantCard({ homeName }: { homeName: string }) {
+  return <p className="tenant-card px-3 py-3 text-sm font-medium text-white">{homeName}</p>
 }
 
 function UserChip({ profile }: { profile: { name: string; role: string } }) {
@@ -64,16 +77,32 @@ function UserChip({ profile }: { profile: { name: string; role: string } }) {
     .toUpperCase()
   return (
     <div className="flex items-center gap-3 border-t border-sidebar-border pt-4">
-      <span className="grid size-10 place-items-center bg-[#f0d36b] font-mono text-sm font-semibold text-forest">
+      <span className="grid size-10 shrink-0 place-items-center rounded-avatar bg-marker font-mono text-sm font-semibold text-brand">
         {initials || 'P'}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-white">{profile.name}</p>
-        <p className="text-xs text-sidebar-foreground/60">{profile.role}</p>
+        <p className="truncate text-xs text-sidebar-foreground/70">{profile.role}</p>
       </div>
-      <button type="button" onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/sign-in' })} className="grid size-10 place-items-center text-sidebar-foreground/70 hover:text-white" aria-label="Sign out">
-        <LogOut className="size-4" />
+      <button
+        type="button"
+        onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/sign-in' })}
+        className="grid size-10 shrink-0 place-items-center text-sidebar-foreground/70 hover:text-white"
+        aria-label="Sign out"
+      >
+        <LogOut className="size-4" aria-hidden="true" />
       </button>
+    </div>
+  )
+}
+
+function HomeSection({ homeName, className }: { homeName: string; className?: string }) {
+  return (
+    <div className={className}>
+      <p className="eyebrow text-sidebar-foreground/60">Home</p>
+      <div className="mt-2">
+        <TenantCard homeName={homeName} />
+      </div>
     </div>
   )
 }
@@ -88,7 +117,7 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
           </Link>
           <NotificationBell />
         </div>
-        <div><p className="eyebrow text-sidebar-foreground/60">Home</p><div className="mt-2"><HomeLabel homeName={profile.homeName} /></div></div>
+        <HomeSection homeName={profile.homeName} />
         <nav aria-label="Portal" className="flex-1 overflow-y-auto">
           <NavList />
         </nav>
@@ -105,7 +134,7 @@ export function PortalSidebar({ profile }: { profile: { name: string; role: stri
           </span>
         </summary>
         <div className="max-h-[calc(100dvh-4rem)] space-y-6 overflow-y-auto border-t border-sidebar-border px-4 py-6">
-          <div><p className="eyebrow text-sidebar-foreground/60">Home</p><div className="mt-2"><HomeLabel homeName={profile.homeName} /></div></div>
+          <HomeSection homeName={profile.homeName} />
           <nav aria-label="Portal mobile">
             <NavList />
           </nav>

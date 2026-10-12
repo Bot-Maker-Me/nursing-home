@@ -46,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               'pointer-events-auto flex w-full max-w-sm items-start gap-3 border px-4 py-3 text-sm shadow-[8px_8px_0_0_rgba(0,0,0,0.12)]',
               toast.tone === 'success'
                 ? 'border-forest/30 bg-mint text-forest'
-                : 'border-terracotta/40 bg-[#fbeee6] text-terracotta',
+                : 'border-terracotta/40 bg-[var(--danger-bg)] text-terracotta',
             )}
           >
             {toast.tone === 'success' ? (

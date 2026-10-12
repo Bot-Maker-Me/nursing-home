@@ -1,11 +1,15 @@
 import { Card, PageHeader } from '@/components/portal/page-header'
-import { currentHome, holidays, operatingHours, weeklySchedule } from '@/lib/sample-data'
+import { getPortalProfile } from '@/lib/auth'
+import { holidays, operatingHours, weeklySchedule } from '@/lib/sample-data'
 
-export default function CutoffsPage() {
+export default async function CutoffsPage() {
+  const profile = await getPortalProfile()
+  const homeName = profile?.home_name || 'Your home'
+
   return (
     <>
       <PageHeader
-        crumb={`${currentHome.name} / Operating hours & Order Cut-offs`}
+        crumb={`${homeName} / Operating hours & Order Cut-offs`}
         title="Operating hours & Order Cut-offs"
         description="All times Eastern. Orders after cut-off go out on the next route unless marked STAT by phone."
       />

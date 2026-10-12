@@ -1,18 +1,22 @@
 import { ArrowUpRight } from 'lucide-react'
 import { Card, PageHeader, StatusPill } from '@/components/portal/page-header'
-import { currentHome, deliveries } from '@/lib/sample-data'
+import { getPortalProfile } from '@/lib/auth'
+import { deliveries } from '@/lib/sample-data'
 
-export default function DeliveriesPage() {
+export default async function DeliveriesPage() {
+  const profile = await getPortalProfile()
+  const homeName = profile?.home_name || 'Your home'
+
   return (
     <>
       <PageHeader
-        crumb={`${currentHome.name} / Delivery Tracking`}
+        crumb={`${homeName} / Delivery Tracking`}
         title="Delivery Tracking"
         description="Routes for today and tomorrow. Live driver positions open in the Teams driver app."
         aside={
           <a
             href="#"
-            className="inline-flex h-12 items-center gap-3 self-start bg-forest px-5 text-sm font-semibold text-cream hover:bg-forest-deep"
+            className="btn-brand inline-flex h-12 items-center gap-3 self-start px-5 text-sm font-semibold sm:self-auto"
           >
             Track deliveries in Teams
             <ArrowUpRight className="size-4 opacity-70" aria-hidden="true" />
@@ -33,7 +37,7 @@ export default function DeliveriesPage() {
             </thead>
             <tbody className="divide-y divide-hairline">
               {deliveries.map((d) => (
-                <tr key={d.id}>
+                <tr key={d.id} className="hover:bg-cream/60">
                   <td className="py-4 pr-4 font-mono text-xs">{d.id}</td>
                   <td className="py-4 pr-4 font-mono">{d.window}</td>
                   <td className="py-4 pr-4">{d.driver}</td>

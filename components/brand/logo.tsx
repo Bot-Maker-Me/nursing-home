@@ -7,7 +7,7 @@ export function Logo({ tone = 'dark', className }: { tone?: 'dark' | 'light'; cl
         aria-hidden="true"
         className={cn(
           'relative grid size-7 place-items-center',
-          tone === 'dark' ? 'bg-forest text-cream' : 'bg-terracotta text-white',
+          tone === 'dark' ? 'bg-forest text-cream' : 'bg-[var(--logo-mark-bg)] text-[var(--logo-mark-ink)]',
         )}
       >
         <span className="absolute h-3.5 w-[3px] bg-current" />

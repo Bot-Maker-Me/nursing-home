@@ -15,8 +15,8 @@ export function PageHeader({
     <header className="flex flex-col gap-6 border-b border-hairline pb-8 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <p className="truncate text-xs text-muted-foreground">{crumb}</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-[-0.045em] sm:text-4xl lg:text-5xl">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
+        <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl lg:text-5xl">{title}</h1>
+        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{description}</p>
       </div>
       {aside ?? <CutoffPill />}
     </header>
@@ -51,18 +51,18 @@ export function Card({
 }
 
 const statusStyles: Record<string, string> = {
-  Delivered: 'bg-mint text-forest',
-  'Out for delivery': 'bg-[#f6e3d6] text-[#8f3c25]',
-  Preparing: 'bg-secondary text-foreground/80',
-  Scheduled: 'border border-hairline text-muted-foreground',
-  Active: 'bg-mint text-forest',
-  Invited: 'bg-secondary text-foreground/80',
-  Deactivated: 'border border-hairline text-muted-foreground line-through',
+  Delivered: 'status-delivered',
+  'Out for delivery': 'status-out',
+  Preparing: 'status-preparing',
+  Scheduled: 'status-scheduled',
+  Active: 'status-delivered',
+  Invited: 'status-preparing',
+  Deactivated: 'status-scheduled line-through',
 }
 
 export function StatusPill({ status }: { status: string }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium ${statusStyles[status] ?? 'bg-secondary'}`}>
+    <span className={`status-pill inline-flex items-center px-2 py-0.5 text-xs font-medium ${statusStyles[status] ?? 'chip-neutral'}`}>
       {status}
     </span>
   )

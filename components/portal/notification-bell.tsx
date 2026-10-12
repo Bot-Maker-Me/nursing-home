@@ -53,7 +53,7 @@ export function NotificationBell() {
       >
         <Bell className="size-4" aria-hidden="true" />
         {total > 0 && (
-          <span className="absolute top-1 right-1 grid min-w-4 place-items-center bg-terracotta px-1 font-mono text-[10px] font-bold text-white">
+          <span className="absolute top-1 right-1 grid min-w-4 place-items-center rounded-badge bg-[var(--badge-bg)] px-1 font-mono text-[10px] font-bold text-[var(--badge-ink)]">
             {total > 9 ? '9+' : total}
           </span>
         )}

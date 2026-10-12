@@ -11,7 +11,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
   if (role === 'pharmacy') redirect('/pharmacy')
 
-  const homeName = profile?.home_name || user.user_metadata?.home_name || 'Maple Grove LTC · Wing B'
+  const homeName = profile?.home_name || user.user_metadata?.home_name || 'Your home'
 
   // This home's custom theme — resolved from its `theme` record (or name) and applied to
   // the shell only, so it never leaks into other homes, the pharmacy/admin consoles or

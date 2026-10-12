@@ -1,66 +1,88 @@
 import type { CSSProperties } from 'react'
 
 /**
- * Per-home ("fully custom") theming.
+ * Per-tenant ("fully custom") theming.
  *
- * A nursing home can carry a complete theme that only applies inside its own portal —
- * other homes, the pharmacy console, the admin console and the public landing page are
- * never affected. Each theme is resolved to CSS custom properties that override the
- * design tokens in `app/globals.css` (`--forest`, `--terracotta`, `--sidebar`, …), so
- * every component re-skins with no component-level changes.
+ * A theme is simply a map of the app's semantic design tokens to values. It is applied
+ * on the portal shell for ONE home only (via `data-home-theme` + inline CSS variables),
+ * so it re-skins that home's portal and nothing else — other homes, the pharmacy/admin
+ * consoles and the public site keep the default palette.
  *
- * A home is matched to a theme either by the `theme` jsonb stored on its `homes` row
- * (`{ "slug": "tony-stacey" }`) or, as a resilient fallback, by its name.
+ * To add a theme for another nursing home, copy the `TONY_STACEY` entry, change the
+ * `slug`/`name`/tokens, and store `{ "slug": "your-slug" }` on that home's `homes` row
+ * (or let it match by name). Nothing else needs to change.
  */
 export type HomeTheme = {
   slug: string
   name: string
-  radius: number
-  colors: {
-    primary: string
-    primarySoft: string
-    primaryDeep: string
-    accent: string
-    tint: string
-    background: string
-    surface: string
-    line: string
-    secondary: string
-    sidebar: string
-    sidebarAccent: string
-    sidebarForeground: string
-    sidebarBorder: string
-    primaryForeground: string
-  }
+  /** Semantic design tokens → CSS custom properties (see app/globals.css). */
+  tokens: Record<string, string>
 }
 
-/**
- * Tony Stacey Centre for Veterans' Care — a crimson "pharmacy" skin inspired by the
- * client's preferred brand palette. White surfaces, soft pink tints and rounded cards.
- */
 const TONY_STACEY: HomeTheme = {
   slug: 'tony-stacey',
   name: "Tony Stacey Centre for Veterans' Care",
-  radius: 0.5,
-  colors: {
-    primary: '#c0123c',
-    primarySoft: '#d14a6e',
-    primaryDeep: '#8c0c2b',
-    accent: '#d81e5b',
-    tint: '#fbe6ee',
-    background: '#f6f5f6',
-    surface: '#ffffff',
-    line: '#e7dce0',
-    secondary: '#f1e9ec',
-    sidebar: '#b00f36',
-    sidebarAccent: '#8c0c2b',
-    sidebarForeground: '#ffe8ee',
-    sidebarBorder: 'rgba(255, 255, 255, 0.18)',
-    primaryForeground: '#ffffff',
+  tokens: {
+    // Brand
+    '--brand': '#c8102e',
+    '--brand-dark': '#a00d25',
+    '--brand-deep': '#7a0a1c',
+    '--brand-tint': '#fdecef',
+    '--on-brand': '#ffffff',
+    '--highlight': '#c8102e',
+    '--marker': '#f2c94c',
+
+    // Surfaces & text
+    '--bg': '#f6f6f7',
+    '--surface': '#ffffff',
+    '--line': '#e7e7ea',
+    '--text': '#1a1a1a',
+    '--text-muted': '#5f6368',
+    '--tint': '#f5f5f7',
+
+    // Status (AA contrast on their own backgrounds)
+    '--status-delivered-bg': '#e8f5ec',
+    '--status-delivered-ink': '#1e6b3a',
+    '--status-out-bg': '#fdf3e2',
+    '--status-out-ink': '#8a5a00',
+    '--status-preparing-bg': '#fdecef',
+    '--status-preparing-ink': '#a00d25',
+    '--status-scheduled-ink': '#5f6368',
+    '--danger-bg': '#fdecef',
+    '--danger-ink': '#a00d25',
+
+    // Sidebar
+    '--sidebar': '#c8102e',
+    '--sidebar-foreground': '#ffe5ea',
+    '--sidebar-primary': '#ffffff',
+    '--sidebar-primary-foreground': '#7a0a1c',
+    '--sidebar-accent': '#7a0a1c',
+    '--sidebar-accent-foreground': '#ffffff',
+    '--sidebar-border': 'rgb(255 255 255 / 0.18)',
+    '--sidebar-ring': '#f2c94c',
+    '--sidebar-hover': 'rgb(255 255 255 / 0.12)',
+    '--sidebar-marker': '#f2c94c',
+
+    // Marks on the sidebar (logo mark + notification badge)
+    '--logo-mark-bg': '#f2c94c',
+    '--logo-mark-ink': '#7a0a1c',
+    '--badge-bg': '#f2c94c',
+    '--badge-ink': '#7a0a1c',
+
+    // Depth & shape → rounded cards, pill buttons, soft shadows
+    '--shadow-color': '#e0e0e3',
+    '--shadow-card': '0 1px 3px rgb(16 24 40 / 6%), 0 1px 2px rgb(16 24 40 / 4%)',
+    '--radius': '0.9rem',
+    '--radius-card': '16px',
+    '--radius-pill': '9999px',
+    '--radius-nav': '0.625rem',
+    '--radius-avatar': '9999px',
+    '--radius-field': '0.625rem',
+    '--radius-badge': '9999px',
   },
 }
 
-/** Registry of every custom home theme. Add one entry per home that needs its own look. */
+/** Registry of every custom home theme. Add one entry per themed home. */
 export const HOME_THEMES: HomeTheme[] = [TONY_STACEY]
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -84,7 +106,8 @@ export function themeByName(name: string | null | undefined): HomeTheme | null {
 
 /**
  * Resolves the active theme for a home. The `theme` jsonb stored on the home wins (by
- * slug), otherwise the home's name is matched against the registry.
+ * slug), otherwise the home's name is matched against the registry; otherwise null
+ * (⇒ the default palette).
  */
 export function resolveHomeTheme({
   dbTheme,
@@ -105,44 +128,7 @@ export function resolveHomeTheme({
   return null
 }
 
-/** Converts a theme into the CSS custom properties that drive the design tokens. */
+/** Converts a theme into the inline CSS custom properties applied on the portal shell. */
 export function themeStyle(theme: HomeTheme): CSSProperties {
-  const c = theme.colors
-  const vars: Record<string, string> = {
-    '--cream': c.background,
-    '--paper': c.surface,
-    '--forest': c.primary,
-    '--forest-soft': c.primarySoft,
-    '--forest-deep': c.primaryDeep,
-    '--terracotta': c.accent,
-    '--mint': c.tint,
-    '--hairline': c.line,
-    '--background': c.background,
-    '--foreground': '#1b1416',
-    '--card': c.surface,
-    '--card-foreground': '#1b1416',
-    '--popover': c.surface,
-    '--popover-foreground': '#1b1416',
-    '--primary': c.primary,
-    '--primary-foreground': c.primaryForeground,
-    '--secondary': c.secondary,
-    '--secondary-foreground': c.primaryDeep,
-    '--muted': c.secondary,
-    '--muted-foreground': '#6b5f63',
-    '--accent': c.tint,
-    '--accent-foreground': c.primaryDeep,
-    '--border': c.line,
-    '--input': c.line,
-    '--ring': c.primarySoft,
-    '--sidebar': c.sidebar,
-    '--sidebar-foreground': c.sidebarForeground,
-    '--sidebar-primary': c.primaryForeground,
-    '--sidebar-primary-foreground': c.sidebar,
-    '--sidebar-accent': c.sidebarAccent,
-    '--sidebar-accent-foreground': '#ffffff',
-    '--sidebar-border': c.sidebarBorder,
-    '--sidebar-ring': c.primarySoft,
-    '--radius': `${theme.radius}rem`,
-  }
-  return vars as unknown as CSSProperties
+  return theme.tokens as unknown as CSSProperties
 }

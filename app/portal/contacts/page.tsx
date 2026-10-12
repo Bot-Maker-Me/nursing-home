@@ -1,5 +1,6 @@
 import { Phone } from 'lucide-react'
 import { Card, PageHeader } from '@/components/portal/page-header'
+import { getPortalProfile } from '@/lib/auth'
 import { currentHome } from '@/lib/sample-data'
 
 function CallButton({ number, label }: { number: string; label: string }) {
@@ -17,11 +18,14 @@ function CallButton({ number, label }: { number: string; label: string }) {
   )
 }
 
-export default function ContactsPage() {
+export default async function ContactsPage() {
+  const profile = await getPortalProfile()
+  const homeName = profile?.home_name || 'Your home'
+
   return (
     <>
       <PageHeader
-        crumb={`${currentHome.name} / Emergency & Contacts`}
+        crumb={`${homeName} / Emergency & Contacts`}
         title="Emergency & Contacts"
         description="Tap a number to call from a tablet or phone."
       />
@@ -32,11 +36,11 @@ export default function ContactsPage() {
             <CallButton number={currentHome.pharmacistPhone} label="Direct line" />
           </div>
         </Card>
-        <section className="border border-terracotta bg-[#fbeee6] p-6 sm:p-7">
+        <section className="border border-terracotta bg-[var(--danger-bg)] p-6 sm:p-7">
           <p className="eyebrow text-terracotta">After hours & emergency</p>
           <h2 className="mt-3 text-xl font-semibold tracking-tight">On-call pharmacist, 24/7</h2>
           <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm leading-relaxed">
-            <li>Call the on-call line and state the home ID <span className="font-mono">{currentHome.id}</span>.</li>
+            <li>Call the on-call line and state your home and resident reference.</li>
             <li>Use resident ID only. Have the MAR open.</li>
             <li>Use the emergency box for first doses while delivery is arranged.</li>
           </ol>
