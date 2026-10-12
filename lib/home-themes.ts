@@ -23,13 +23,13 @@ const TONY_STACEY: HomeTheme = {
   slug: 'tony-stacey',
   name: "Tony Stacey Centre for Veterans' Care",
   tokens: {
-    // Brand
-    '--brand': '#c8102e',
-    '--brand-dark': '#a00d25',
-    '--brand-deep': '#7a0a1c',
+    // Brand — deeper, calmer crimson (#c8102e read too bright, especially on large areas)
+    '--brand': '#a8122f',
+    '--brand-dark': '#8b0f27',
+    '--brand-deep': '#6b0b1d',
     '--brand-tint': '#fdecef',
     '--on-brand': '#ffffff',
-    '--highlight': '#c8102e',
+    '--highlight': '#a8122f',
     '--marker': '#f2c94c',
 
     // Surfaces & text
@@ -46,17 +46,17 @@ const TONY_STACEY: HomeTheme = {
     '--status-out-bg': '#fdf3e2',
     '--status-out-ink': '#8a5a00',
     '--status-preparing-bg': '#fdecef',
-    '--status-preparing-ink': '#a00d25',
+    '--status-preparing-ink': '#8b0f27',
     '--status-scheduled-ink': '#5f6368',
     '--danger-bg': '#fdecef',
-    '--danger-ink': '#a00d25',
+    '--danger-ink': '#8b0f27',
 
     // Sidebar
-    '--sidebar': '#c8102e',
+    '--sidebar': '#8b0f27',
     '--sidebar-foreground': '#ffe5ea',
     '--sidebar-primary': '#ffffff',
-    '--sidebar-primary-foreground': '#7a0a1c',
-    '--sidebar-accent': '#7a0a1c',
+    '--sidebar-primary-foreground': '#6b0b1d',
+    '--sidebar-accent': '#6b0b1d',
     '--sidebar-accent-foreground': '#ffffff',
     '--sidebar-border': 'rgb(255 255 255 / 0.18)',
     '--sidebar-ring': '#f2c94c',
@@ -65,9 +65,9 @@ const TONY_STACEY: HomeTheme = {
 
     // Marks on the sidebar (logo mark + notification badge)
     '--logo-mark-bg': '#f2c94c',
-    '--logo-mark-ink': '#7a0a1c',
+    '--logo-mark-ink': '#6b0b1d',
     '--badge-bg': '#f2c94c',
-    '--badge-ink': '#7a0a1c',
+    '--badge-ink': '#6b0b1d',
 
     // Depth & shape → rounded cards, pill buttons, soft shadows
     '--shadow-color': '#e0e0e3',
