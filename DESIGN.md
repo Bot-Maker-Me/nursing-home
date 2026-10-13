@@ -11,8 +11,8 @@ surface it is applied to, so nothing leaks between them.
 | Scope | Applied where | Affects |
 | --- | --- | --- |
 | `:root` | always | Portal, admin console, pharmacy console — the default "forest/cream" palette |
-| `[data-home-theme='<slug>']` | `app/portal/layout.tsx`, `app/sign-in/page.tsx` | One nursing home's portal and its pre-auth sign-in (`lib/home-themes.ts`) |
-| `[data-site-theme='pharma']` | `app/page.tsx` | The public marketing site only |
+| `[data-home-theme='<slug>']` | `app/portal/layout.tsx` | One nursing home's portal only (`lib/home-themes.ts`) |
+| `[data-site-theme='pharma']` | `app/page.tsx`, `app/sign-in/page.tsx` | The public marketing site and the pre-auth sign-in |
 
 Adding a theme for another nursing home = one entry in `lib/home-themes.ts` plus
 `{ "slug": "…" }` on that home's `homes.theme` row. Nothing else changes.
