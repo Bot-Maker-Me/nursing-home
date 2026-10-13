@@ -472,6 +472,135 @@ html {
     border-color 0.15s ease-out;
 }
 
+/* ---------------------------------------------------------------------------
+   Landing motion — premium scroll-driven text reveals.
+   Scoped to the marketing theme so the portal, admin and pharmacy consoles
+   keep their calm, motion-free feel. Elements start in their "hidden" state and
+   animate once an ancestor gains `data-visible` (set by the Reveal components).
+   Reduced-motion users jump straight to the finished state (see block below).
+--------------------------------------------------------------------------- */
+@keyframes site-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.75rem);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes site-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes site-word {
+  from {
+    opacity: 0;
+    transform: translateY(120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes site-word-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes site-rule {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes site-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+/* Block reveals: fade + rise + a touch of blur as they enter the viewport. */
+[data-site-theme='pharma'] .reveal {
+  opacity: 0;
+}
+[data-site-theme='pharma'] .reveal[data-visible] {
+  animation: site-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Fade-only reveals (headers, quiet labels). */
+[data-site-theme='pharma'] .reveal-fade {
+  opacity: 0;
+}
+[data-site-theme='pharma'] .reveal-fade[data-visible] {
+  animation: site-fade 0.7s ease-out both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Word reveals: each word climbs out from behind a mask. */
+[data-site-theme='pharma'] .reveal-word {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+[data-site-theme='pharma'] .reveal-word > span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(120%);
+  will-change: transform;
+}
+[data-site-theme='pharma'] [data-reveal-variant='drop'] .reveal-word > span {
+  transform: translateY(-120%);
+}
+[data-site-theme='pharma'] [data-reveal-text][data-visible] .reveal-word > span {
+  animation: site-word 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--reveal-delay, 0ms) + var(--word-index, 0) * var(--reveal-stagger, 55ms));
+}
+[data-site-theme='pharma'] [data-reveal-text][data-reveal-variant='drop'][data-visible] .reveal-word > span {
+  animation-name: site-word-drop;
+}
+
+/* A hairline rule that draws itself in, under eyebrows. */
+[data-site-theme='pharma'] .reveal-rule {
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+[data-site-theme='pharma'] [data-visible] .reveal-rule {
+  animation: site-rule 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--reveal-delay, 0ms) + 120ms);
+}
+
+/* Gentle idle float for the hero ledger chips (desktop only). */
+@media (min-width: 64rem) {
+  [data-site-theme='pharma'] .float-soft {
+    animation: site-float 6s ease-in-out infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -481,5 +610,15 @@ html {
   *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+  [data-site-theme='pharma'] .reveal,
+  [data-site-theme='pharma'] .reveal-fade,
+  [data-site-theme='pharma'] .reveal-word > span,
+  [data-site-theme='pharma'] .reveal-rule,
+  [data-site-theme='pharma'] .float-soft {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
   }
 }

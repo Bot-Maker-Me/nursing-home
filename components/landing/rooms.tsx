@@ -1,3 +1,5 @@
+import { Reveal, RevealText } from './reveal'
+
 const rooms = [
   {
     n: '01',
@@ -36,18 +38,26 @@ export function Rooms() {
     <section id="rooms" aria-labelledby="rooms-heading" className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
       <div className="grid gap-12 lg:grid-cols-[1fr_2fr]">
         <div className="lg:sticky lg:top-10 lg:self-start">
-          <p className="eyebrow text-terracotta">{"What's inside"}</p>
-          <h2 id="rooms-heading" className="mt-4 text-balance text-4xl font-bold tracking-[-0.04em] sm:text-5xl">
-            Five rooms. One front door.
-          </h2>
-          <p className="mt-4 max-w-sm leading-relaxed text-muted-foreground">
+          <Reveal as="p" className="eyebrow text-terracotta">
+            {"What's inside"}
+          </Reveal>
+          <RevealText
+            as="h2"
+            id="rooms-heading"
+            text="Five rooms. One front door."
+            className="mt-4 text-balance text-4xl font-bold tracking-[-0.04em] sm:text-5xl"
+            delay={100}
+          />
+          <Reveal as="p" delay={280} className="mt-4 max-w-sm leading-relaxed text-muted-foreground">
             Built for shared nursing-station desktops and tablets on the floor — large targets, calm screens.
-          </p>
+          </Reveal>
         </div>
         <ol className="border-t border-hairline">
-          {rooms.map((r) => (
-            <li
+          {rooms.map((r, index) => (
+            <Reveal
+              as="li"
               key={r.n}
+              delay={index * 90}
               className="grid grid-cols-[3rem_1fr] gap-4 border-b border-hairline py-8 sm:grid-cols-[4rem_1fr_auto] sm:gap-8"
             >
               <span className="font-mono text-sm text-terracotta">{r.n}</span>
@@ -58,7 +68,7 @@ export function Rooms() {
               <span className="col-start-2 self-start bg-mint px-2.5 py-1 text-xs font-medium text-forest sm:col-start-auto">
                 {r.meta}
               </span>
-            </li>
+            </Reveal>
           ))}
         </ol>
       </div>

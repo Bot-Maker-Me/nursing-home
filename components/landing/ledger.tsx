@@ -1,7 +1,7 @@
 /**
  * The hero's right column: a cream "register" sheet with a rubber stamp and floating
- * chips. Pure CSS — no images, no animation — so it costs nothing to render and can't
- * shift the layout.
+ * chips. Pure CSS — no images — so it costs nothing to render and can't shift the
+ * layout. The chips drift gently at desktop widths (see `.float-soft` in globals.css).
  *
  * On >=lg the chips are absolutely positioned around the sheet; below lg they fall back
  * into normal flow beneath it, so nothing can overlap or clip on small screens. The
@@ -72,20 +72,29 @@ export function Ledger() {
       </div>
 
       {/* chips — in flow below lg, floating around the sheet at lg+ */}
-      <div className="mt-6 w-fit rounded-xl border border-hairline bg-paper px-4 py-2.5 lg:absolute lg:-top-6 lg:right-6 lg:mt-0">
+      <div
+        className="float-soft mt-6 w-fit rounded-xl border border-hairline bg-paper px-4 py-2.5 lg:absolute lg:-top-6 lg:right-6 lg:mt-0"
+        style={{ animationDelay: '0s' }}
+      >
         <span className="block text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
           On tonight&rsquo;s routes
         </span>
         <span className="font-mono text-lg text-foreground">14</span>
       </div>
 
-      <div className="mt-3 w-fit rounded-xl border border-hairline bg-paper px-4 py-2.5 font-mono text-sm leading-6 text-muted-foreground lg:absolute lg:bottom-20 lg:left-0 lg:mt-0">
+      <div
+        className="float-soft mt-3 w-fit rounded-xl border border-hairline bg-paper px-4 py-2.5 font-mono text-sm leading-6 text-muted-foreground lg:absolute lg:bottom-20 lg:left-0 lg:mt-0"
+        style={{ animationDelay: '1.2s' }}
+      >
         HM-0142 · 16:52
         <br />
         RD · 17:02
       </div>
 
-      <div className="mt-3 rounded-xl border border-hairline border-l-[3px] border-l-brand bg-paper px-4 py-3 text-sm text-foreground lg:absolute lg:bottom-2 lg:left-0 lg:mt-0 lg:max-w-xs">
+      <div
+        className="float-soft mt-3 rounded-xl border border-hairline border-l-[3px] border-l-brand bg-paper px-4 py-3 text-sm text-foreground lg:absolute lg:bottom-2 lg:left-0 lg:mt-0 lg:max-w-xs"
+        style={{ animationDelay: '2.4s' }}
+      >
         Late order: Res #4471, placed after the 17:00 cut-off.
       </div>
     </div>
