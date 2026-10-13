@@ -13,6 +13,7 @@
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-display: var(--font-fraunces), Georgia, 'Times New Roman', serif;
 
   /* Brand */
   --color-brand: var(--brand);
@@ -119,6 +120,17 @@
 
   --shadow-color: #e2e0d6;
   --shadow-card: none;
+
+  /* Deep navy of the marketing site. Declared at :root so it can also be used by
+     the `html`/`body` rules that keep the overscroll area from flashing cream. */
+  --site-navy: #0b1220;
+
+  /* Ledger sheet (cream paper surfaces + its ink) */
+  --sheet: #faf9f5;
+  --sheet-back: #f1efe6;
+  --sheet-line: #dcd7cb;
+  --ink: #16201c;
+  --ink-muted: #5d625c;
 
   /* Radii default to 0 so non-themed tenants keep the sharp look */
   --radius: 0.125rem;
@@ -337,5 +349,137 @@
   /* Light mobile bar needs an edge too. */
   [data-home-theme] .portal-mobile-bar {
     border-bottom: 1px solid var(--line);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   MAIN MARKETING SITE — dark brand theme (reference: pharmastrategies.ca).
+
+   This is a SIBLING scope of [data-home-theme], applied only where the landing
+   route sets data-site-theme="pharma". The portal, admin console, pharmacy
+   console and every nursing-home theme are untouched by everything below.
+
+   These rules sit outside @layer on purpose: the tokens are inlined into the
+   utilities by `@theme inline`, so a handful of legacy aliases (`cream` = page
+   background, `mint` = tint) have to be corrected at the utility level rather
+   than by swapping a variable. Doing it here means no landing component JSX
+   needs to change.
+--------------------------------------------------------------------------- */
+[data-site-theme='pharma'] {
+  color-scheme: dark;
+
+  --bg: var(--site-navy);
+  --surface: #111a2b;
+  --line: #253049;
+  --text: #ede6da;
+  --text-muted: #9aa3b2;
+  --tint: #16203a;
+
+  /* Text-safe red: #c8102e only clears AA at large sizes / on cream. */
+  --brand: #e5484d;
+  --brand-dark: #a00d25;
+  --brand-deep: #7a0a1c;
+  --brand-tint: #331a20;
+  --on-brand: #ede6da;
+  --highlight: #e5484d;
+  --marker: #c8102e;
+
+  --sheet: #ede6da;
+  --sheet-back: #ddd3c2;
+  --sheet-line: #d8cfbe;
+  --ink: #0b1220;
+  --ink-muted: #6b6355;
+
+  --logo-mark-bg: #c8102e;
+  --logo-mark-ink: #ede6da;
+  --shadow-card: none;
+
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Utilities inline the theme value, so swap the mono family for this scope. */
+[data-site-theme='pharma'] .font-mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/* Solid brand fills stay the deeper red (cream text = 4.7:1). */
+[data-site-theme='pharma'] .bg-forest,
+[data-site-theme='pharma'] .bg-brand {
+  background-color: #c8102e;
+}
+
+/* Full-bleed brand blocks become navy so the page isn't one big red band. */
+[data-site-theme='pharma'] section.bg-forest {
+  background-color: var(--bg);
+}
+[data-site-theme='pharma'] #safeguards .bg-forest {
+  background-color: var(--surface);
+}
+
+/* `cream` is the legacy alias for the page background — now navy, so on this
+   dark scope it has to read as the light text colour instead. */
+[data-site-theme='pharma'] .text-cream {
+  color: var(--text);
+}
+[data-site-theme='pharma'] .text-cream\/70 {
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+[data-site-theme='pharma'] .text-cream\/50 {
+  color: color-mix(in srgb, var(--text) 50%, transparent);
+}
+
+/* `forest` is the legacy alias for the brand colour, which is red here. Small red text
+   on navy is only 3.2:1, and the reference keeps red for emphasis — so body-ish text
+   reads cream and red stays on the solid fills and the `highlight` accents. */
+[data-site-theme='pharma'] .text-forest {
+  color: var(--text);
+}
+
+/* Legacy `mint` badge becomes a dark-red tint with cream text. */
+[data-site-theme='pharma'] .bg-mint {
+  color: var(--text);
+}
+
+/* Focus rings must stay visible on a dark page. */
+[data-site-theme='pharma'] :focus-visible {
+  outline-color: var(--highlight);
+}
+
+/* Smoothness: no cream flash past the page edges (html paints the canvas), and a
+   dark scrollbar to match. */
+html:has([data-site-theme='pharma']) {
+  color-scheme: dark;
+  background-color: var(--site-navy);
+}
+body:has([data-site-theme='pharma']) {
+  background-color: var(--site-navy);
+}
+
+/* Smooth anchor scrolling that clears the sticky nav. */
+html {
+  scroll-behavior: smooth;
+}
+[data-site-theme='pharma'] section {
+  scroll-margin-top: 5.5rem;
+}
+
+/* State changes only — no layout animation. */
+[data-site-theme='pharma'] a,
+[data-site-theme='pharma'] button {
+  transition:
+    color 0.15s ease-out,
+    background-color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }

@@ -26,7 +26,7 @@ Project guidance for the Henderson's Pharmacy client portal. Keep this file accu
 - **Tenant labels**: every breadcrumb, page heading and tenant label must read from `getTenantName()` — never `profiles.home_name` directly, which is a denormalised copy that drifts from the `homes` row.
 - **Rate limiting**: `lib/rate-limit.ts` (Upstash Redis over REST; env `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). It fails open when unconfigured. Apply it to write endpoints.
 - **Service role**: only use the service-role client (see `app/api/admin/*`) inside admin route handlers that call `requireAdmin()` first; never expose it to the browser.
-- **Fonts**: use the `next/font` setup already in `app/layout.tsx` (`--font-sans` → Inter, `--font-mono` → JetBrains Mono). Don't add new font loaders.
+- **Fonts**: the `next/font` setup in `app/layout.tsx` is the single loader — Inter (`--font-sans`) and JetBrains Mono (`--font-mono`) for the app, plus Fraunces / Manrope / IBM Plex Mono, which are applied **only** by the marketing scope. Don't add further font loaders.
 - **State/outside data**: rely on React hooks (`useState`/`useEffect`) and server components. Don't introduce Redux, Zustand, React Query, etc. without approval.
 - **Utilities/helpers**: keep one-off helpers local; add shared ones to `lib/`. Sample/static data goes in `lib/sample-data.ts`.
 
@@ -38,3 +38,4 @@ Project guidance for the Henderson's Pharmacy client portal. Keep this file accu
 - Session refresh runs through the Next 16 **`proxy.ts`** file (the renamed middleware). Do not create a `middleware.ts`.
 - After changing a component that a page should render, wire it into the relevant `app/**/page.tsx` so it actually appears.
 - **Per-home custom themes** live in `lib/home-themes.ts` (`HomeTheme` + `HOME_THEMES`) and are resolved/applied in `app/portal/layout.tsx` via `data-home-theme` + CSS-variable overrides, so a theme only affects that one home's portal — never other homes, the pharmacy/admin consoles, or the landing page. A home's theme is matched by the `theme` jsonb on its `homes` row (`{ "slug": "…" }`) or by name. Add theme-specific design polish as `[data-home-theme='<slug>']` rules in `app/globals.css`.
+- **Three theme scopes** exist and must stay independent: `:root` (portal/admin/pharmacy default), `[data-home-theme='<slug>']` (one home's portal), and `[data-site-theme='pharma']` (the public landing route, set in `app/page.tsx`). See `DESIGN.md` for the palette, type scale and the reason the marketing scope pins `.bg-forest`/`.bg-brand` to `#C8102E`.

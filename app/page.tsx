@@ -6,7 +6,9 @@ import { ClosingCta, Safeguards, SiteFooter } from '@/components/landing/safegua
 
 export default function Page() {
   return (
-    <>
+    // The marketing theme scope. It only ever applies to this route: the portal,
+    // admin/pharmacy consoles and per-home themes resolve their own tokens.
+    <div data-site-theme="pharma" className="min-h-dvh bg-background text-foreground">
       <SiteHeader />
       <main>
         <Hero />
@@ -16,6 +18,6 @@ export default function Page() {
         <ClosingCta />
       </main>
       <SiteFooter />
-    </>
+    </div>
   )
 }
