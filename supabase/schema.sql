@@ -85,9 +85,13 @@ create table if not exists public.chat_threads (
   urgent boolean not null default false,
   created_by uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
-  last_message_at timestamptz not null default now()
+  last_message_at timestamptz not null default now(),
+  archived_at timestamptz
 );
 create index if not exists chat_threads_home_idx on public.chat_threads(home_id, last_message_at desc);
+-- "create table if not exists" is a no-op on an older chat_threads table.
+alter table public.chat_threads add column if not exists archived_at timestamptz;
+create index if not exists chat_threads_archived_idx on public.chat_threads(archived_at);
 
 create table if not exists public.portal_messages (
   id uuid primary key default gen_random_uuid(),

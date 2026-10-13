@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient, requireAdmin } from '@/lib/supabase/admin'
-import { loadConversations, sendPharmacyReply } from '@/lib/chat-server'
+import { loadConversations, sendPharmacyReply, setThreadArchived } from '@/lib/chat-server'
 
 export async function GET() {
   const context = await requireAdmin()
@@ -33,4 +33,22 @@ export async function POST(request: Request) {
     )
   }
   return NextResponse.json(result.data)
+}
+
+export async function PATCH(request: Request) {
+  const context = await requireAdmin()
+  if (!context.ok) return context.response
+
+  const body = await request.json().catch(() => null)
+  const threadId = String(body?.threadId ?? '')
+  if (!threadId) return NextResponse.json({ error: 'A conversation is required.' }, { status: 400 })
+
+  const result = await setThreadArchived(context.supabase, { threadId, archived: Boolean(body?.archived) })
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.reason === 'not_found' ? 'Conversation not found.' : 'Conversation could not be updated.' },
+      { status: result.reason === 'not_found' ? 404 : 503 },
+    )
+  }
+  return NextResponse.json({ ok: true })
 }

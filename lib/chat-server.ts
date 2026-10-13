@@ -4,6 +4,27 @@ export const PHARMACY_SENDER = 'Henderson’s Pharmacy'
 
 type Member = { name: string; email: string; home: string }
 
+const THREAD_COLUMNS = 'id, subject, resident_ref, urgent, home_id, created_by, last_message_at, created_at'
+
+/**
+ * Threads, newest first. `archived_at` ships with the chat-archive migration; if that
+ * migration has not been run yet we retry without it so the inbox keeps working.
+ */
+async function selectThreads(supabase: SupabaseClient): Promise<Array<Record<string, unknown>> | null> {
+  const withArchive = await supabase
+    .from('chat_threads')
+    .select(`${THREAD_COLUMNS}, archived_at`)
+    .order('last_message_at', { ascending: false })
+  if (!withArchive.error) return withArchive.data ?? []
+
+  const withoutArchive = await supabase
+    .from('chat_threads')
+    .select(THREAD_COLUMNS)
+    .order('last_message_at', { ascending: false })
+  if (withoutArchive.error) return null
+  return (withoutArchive.data ?? []).map((thread) => ({ ...thread, archived_at: null }))
+}
+
 export type Conversations = {
   threads: Array<Record<string, unknown> & { member: Member | null; homeName: string }>
   messages: Array<Record<string, unknown>>
@@ -17,17 +38,14 @@ export async function loadConversations(
   supabase: SupabaseClient,
   labelClient: SupabaseClient | null,
 ): Promise<{ ok: true; data: Conversations } | { ok: false }> {
-  const [threadsResponse, messagesResponse] = await Promise.all([
-    supabase
-      .from('chat_threads')
-      .select('id, subject, resident_ref, urgent, home_id, created_by, last_message_at, created_at')
-      .order('last_message_at', { ascending: false }),
+  const [threadRows, messagesResponse] = await Promise.all([
+    selectThreads(supabase),
     supabase
       .from('portal_messages')
       .select('id, thread_id, sender_role, sender_name, body, urgent, read_at, created_at')
       .order('created_at', { ascending: true }),
   ])
-  if (threadsResponse.error || messagesResponse.error) return { ok: false }
+  if (!threadRows || messagesResponse.error) return { ok: false }
 
   const members: Record<string, Member> = {}
   const homes: Record<string, string> = {}
@@ -52,9 +70,9 @@ export async function loadConversations(
   return {
     ok: true,
     data: {
-      threads: (threadsResponse.data ?? []).map((thread) => ({
+      threads: threadRows.map((thread) => ({
         ...thread,
-        member: members[thread.created_by] ?? null,
+        member: members[String(thread.created_by)] ?? null,
         homeName: homes[String(thread.home_id ?? '')] ?? '',
       })),
       messages: messagesResponse.data ?? [],
@@ -88,9 +106,10 @@ export async function sendPharmacyReply(
     .single()
   if (error) return { ok: false, reason: 'failed' }
 
+  // Replying revives an archived conversation back into the inbox.
   await supabase
     .from('chat_threads')
-    .update({ last_message_at: new Date().toISOString(), urgent: false })
+    .update({ last_message_at: new Date().toISOString(), urgent: false, archived_at: null })
     .eq('id', threadId);
 
   await supabase
@@ -101,6 +120,25 @@ export async function sendPharmacyReply(
     .is('read_at', null);
 
   return { ok: true, data }
+}
+
+/**
+ * Archives or restores a conversation. Nothing is deleted — an archived thread stays
+ * readable and only drops out of the active inbox.
+ */
+export async function setThreadArchived(
+  supabase: SupabaseClient,
+  { threadId, archived }: { threadId: string; archived: boolean },
+): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'failed' }> {
+  const { data, error } = await supabase
+    .from('chat_threads')
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', threadId)
+    .select('id')
+    .maybeSingle()
+  if (error) return { ok: false, reason: 'failed' }
+  if (!data) return { ok: false, reason: 'not_found' }
+  return { ok: true }
 }
 
 /**

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Loader2, Mail, Plus, Send, X } from 'lucide-react'
+import { AlertTriangle, Loader2, Mail, Plus, Send, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/common/toast'
@@ -26,8 +26,71 @@ type Message = {
   created_at: string
 }
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+const dayKey = (iso: string) => new Date(iso).toDateString()
+const stamp = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-CA', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+
+/** "Yesterday · Mon, 12 Oct 2026" for the last two days, otherwise just the date. */
+const dayLabel = (iso: string) => {
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  const key = dayKey(iso)
+  if (key === dayKey(today.toISOString())) return `Today · ${stamp(iso)}`
+  if (key === dayKey(yesterday.toISOString())) return `Yesterday · ${stamp(iso)}`
+  return stamp(iso)
+}
+
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+}
+
+function MessageRow({ message }: { message: Message }) {
+  const mine = message.sender_role === 'home'
+  return (
+    <li className={cn('flex items-end gap-3', mine && 'flex-row-reverse')}>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'grid size-8 shrink-0 place-items-center rounded-full font-mono text-[10px] font-bold',
+          mine ? 'bg-brand text-cream' : 'bg-brand-tint text-brand',
+        )}
+      >
+        {initials(message.sender_name)}
+      </span>
+      <div className="min-w-0 max-w-[85%] sm:max-w-md">
+        <p className={cn('mb-1 truncate text-xs font-semibold', mine && 'text-right')}>{message.sender_name}</p>
+        <div className={cn('rounded-2xl px-4 py-3', mine ? 'bg-brand text-cream' : 'border border-hairline bg-paper')}>
+          {message.urgent && (
+            <span
+              className={cn(
+                'rounded-badge mb-2 inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase',
+                mine ? 'bg-cream/20 text-cream' : 'bg-brand-tint text-brand',
+              )}
+            >
+              <AlertTriangle className="size-3" aria-hidden="true" />
+              Urgent
+            </span>
+          )}
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.body}</p>
+          <p
+            className={cn(
+              'mt-1.5 flex items-center gap-2 font-mono text-[11px]',
+              mine ? 'text-cream/70' : 'text-muted-foreground',
+            )}
+          >
+            {clock(message.created_at)}
+            <span>{message.read_at ? 'Read' : mine ? 'Sent' : 'Delivered'}</span>
+          </p>
+        </div>
+      </div>
+    </li>
+  )
+}
 
 export function ChatPanel({ homeName }: { homeName: string }) {
   const supabase = useMemo(() => createClient(), [])
@@ -45,10 +108,22 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   const [newResident, setNewResident] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [creating, setCreating] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLLIElement>(null)
   const channelName = useId().replace(/[^a-zA-Z0-9]/g, '')
 
   const activeThread = threads.find((thread) => thread.id === activeId) ?? null
+
+  // Date separators, WhatsApp-style: one divider per calendar day.
+  const rows: Array<{ kind: 'day'; key: string; label: string } | { kind: 'message'; key: string; message: Message }> = []
+  let lastDay = ''
+  for (const message of messages) {
+    const key = dayKey(message.created_at)
+    if (key !== lastDay) {
+      rows.push({ kind: 'day', key: `day-${key}`, label: dayLabel(message.created_at) })
+      lastDay = key
+    }
+    rows.push({ kind: 'message', key: message.id, message })
+  }
 
   const loadThreads = useCallback(async () => {
     const response = await fetch('/api/portal/threads')
@@ -95,7 +170,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   }, [supabase, activeId, loadMessages, loadThreads, channelName])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages])
 
   const send = async (event: React.FormEvent) => {
@@ -175,8 +250,8 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   }
 
   return (
-    <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <div className="min-w-0 border-b border-hairline lg:border-r lg:border-b-0">
+    <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:h-[min(78svh,46rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col border-b border-hairline lg:min-h-0 lg:border-r lg:border-b-0">
         <div className="flex items-center justify-between gap-2 border-b border-hairline p-4">
           <div>
             <p className="eyebrow text-forest-soft/80">Conversations</p>
@@ -235,7 +310,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
           </form>
         )}
 
-        <ul className="max-h-72 divide-y divide-hairline overflow-y-auto lg:max-h-[28rem]" aria-label="Threads">
+        <ul className="max-h-72 divide-y divide-hairline overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1" aria-label="Threads">
           {loadingThreads && <li className="p-4 text-sm text-muted-foreground">Loading conversations…</li>}
           {!loadingThreads && threads.length === 0 && (
             <li className="p-4 text-sm text-muted-foreground">No conversations yet. Start one with the pharmacy.</li>
@@ -268,44 +343,54 @@ export function ChatPanel({ homeName }: { homeName: string }) {
         </ul>
       </div>
 
-      <div className="flex min-h-[22rem] min-w-0 flex-col lg:min-h-[32rem]">
+      <div className="flex h-[32rem] min-w-0 flex-col lg:h-auto lg:min-h-0">
         {activeThread ? (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline p-5">
-              <div>
-                <p className="font-semibold">{activeThread.subject}</p>
-                <p className="font-mono text-xs text-forest-soft">{activeThread.resident_ref || 'No resident reference'}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-lg font-semibold tracking-tight">{activeThread.subject}</h2>
+                  {activeThread.resident_ref && (
+                    <span className="rounded-badge bg-brand-tint px-2 py-0.5 font-mono text-[11px] text-brand">
+                      {activeThread.resident_ref}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
+                  Secure channel · shared with {homeName}
+                </p>
               </div>
-              {activeThread.urgent && (
-                <span className="rounded-badge bg-terracotta px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Urgent</span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {activeThread.urgent && (
+                  <span className="rounded-badge bg-terracotta px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] text-white uppercase">
+                    Urgent
+                  </span>
+                )}
+                <span className="rounded-badge inline-flex items-center gap-1.5 bg-brand-tint px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] text-brand uppercase">
+                  <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
+                  Live
+                </span>
+              </div>
             </div>
 
-            <ol className="min-w-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto p-5">
+            <ol className="min-h-0 min-w-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-6">
               {loadingMessages && <li className="text-sm text-muted-foreground">Loading messages…</li>}
               {!loadingMessages && messages.length === 0 && (
                 <li className="text-sm text-muted-foreground">No messages in this conversation yet.</li>
               )}
-              {messages.map((message) => {
-                const mine = message.sender_role === 'home'
-                return (
-                  <li key={message.id} className={cn('flex', mine && 'justify-end')}>
-                    <div className={cn('max-w-[85%] rounded-card border p-4 sm:max-w-md', mine ? 'border-forest bg-forest text-cream' : 'border-hairline bg-cream')}>
-                      <p className={cn('flex items-center gap-2 text-xs', mine ? 'text-cream/70' : 'text-muted-foreground')}>
-                        {message.sender_name} · <span className="font-mono">{clock(message.created_at)}</span>
-                        {message.urgent && (
-                          <span className="rounded-badge bg-terracotta px-1.5 text-[10px] font-bold uppercase text-white">Urgent</span>
-                        )}
-                      </p>
-                      <p className="mt-1.5 text-sm leading-relaxed whitespace-pre-wrap">{message.body}</p>
-                      <p className={cn('mt-2 text-[11px]', mine ? 'text-cream/60' : 'text-muted-foreground')}>
-                        {mine ? (message.read_at ? 'Read by pharmacy' : 'Sent') : message.read_at ? 'Read' : 'Delivered'}
-                      </p>
-                    </div>
+              {rows.map((row) =>
+                row.kind === 'day' ? (
+                  <li key={row.key} className="flex items-center gap-3">
+                    <span className="h-px flex-1 bg-hairline" aria-hidden="true" />
+                    <span className="eyebrow text-muted-foreground">{row.label}</span>
+                    <span className="h-px flex-1 bg-hairline" aria-hidden="true" />
                   </li>
-                )
-              })}
-              <div ref={bottomRef} />
+                ) : (
+                  <MessageRow key={row.key} message={row.message} />
+                ),
+              )}
+              <li ref={bottomRef} aria-hidden="true" />
             </ol>
 
             <form onSubmit={send} className="border-t border-hairline p-4">

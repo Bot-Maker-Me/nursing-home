@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient, requireStaff } from '@/lib/supabase/admin'
-import { loadConversations, sendPharmacyReply, startPharmacyThread } from '@/lib/chat-server'
+import { loadConversations, sendPharmacyReply, setThreadArchived, startPharmacyThread } from '@/lib/chat-server'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function GET() {
@@ -66,4 +66,25 @@ export async function POST(request: Request) {
     )
   }
   return NextResponse.json({ thread: result.data })
+}
+
+export async function PATCH(request: Request) {
+  const context = await requireStaff(['pharmacy', 'admin'])
+  if (!context.ok) return context.response
+
+  const limitResult = await rateLimit(`pharmacy-chat-archive:${context.userId}`, { limit: 60, windowSeconds: 60 })
+  if (!limitResult.ok) return rateLimitResponse(limitResult)
+
+  const body = await request.json().catch(() => null)
+  const threadId = String(body?.threadId ?? '')
+  if (!threadId) return NextResponse.json({ error: 'A conversation is required.' }, { status: 400 })
+
+  const result = await setThreadArchived(context.supabase, { threadId, archived: Boolean(body?.archived) })
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.reason === 'not_found' ? 'Conversation not found.' : 'Conversation could not be updated.' },
+      { status: result.reason === 'not_found' ? 404 : 503 },
+    )
+  }
+  return NextResponse.json({ ok: true })
 }
