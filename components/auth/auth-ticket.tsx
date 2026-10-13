@@ -171,7 +171,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
         <p className="text-xs text-cream/60">Your account is protected by Supabase Auth.</p>
       </div>
 
-      <div className="grid w-full border border-white/10 bg-paper shadow-[18px_18px_0_0_rgba(0,0,0,0.25)] md:grid-cols-[15rem_1fr]">
+      <div className="grid w-full overflow-hidden border border-white/10 bg-paper shadow-[18px_18px_0_0_rgba(0,0,0,0.25)] md:grid-cols-[15rem_1fr]">
         <aside className="relative flex flex-col justify-between gap-8 border-b border-dashed border-hairline bg-mint p-6 md:border-r md:border-b-0">
           <div>
             <p className="eyebrow text-forest/70">Access pass</p>
@@ -226,7 +226,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
 
         <div className="p-6 sm:p-10">
           {step !== 'ready' && (
-            <div role="tablist" aria-label="Account access" className="grid grid-cols-2 border border-hairline">
+            <div role="tablist" aria-label="Account access" className="grid grid-cols-2 overflow-hidden rounded-field border border-hairline">
               {(
                 [
                   ['signin', 'Sign in'],
@@ -239,6 +239,7 @@ export function AuthTicket({ initialMode, redirectTo = '/portal' }: { initialMod
                   type="button"
                   aria-selected={mode === m}
                   onClick={() => switchMode(m)}
+                  style={{ borderRadius: 'var(--radius-field)' }}
                   className={cn(
                     'h-11 text-sm font-medium transition-colors',
                     mode === m ? 'bg-forest text-cream' : 'text-muted-foreground hover:text-forest',

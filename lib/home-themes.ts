@@ -130,6 +130,16 @@ export function resolveHomeTheme({
   return null
 }
 
+/**
+ * Theme for the pre-auth screens (sign-in / invitation activation). Nobody is signed in
+ * yet, so a link can name the home explicitly (`?home=<slug>` or `?theme=<slug>`); when
+ * it does not, we fall back to the app's registered home theme so the station sign-in
+ * still matches "the home" instead of the default palette.
+ */
+export function resolveAuthTheme(slug?: string | null): HomeTheme | null {
+  return themeBySlug(slug) ?? HOME_THEMES[0] ?? null
+}
+
 /** Converts a theme into the inline CSS custom properties applied on the portal shell. */
 export function themeStyle(theme: HomeTheme): CSSProperties {
   return theme.tokens as unknown as CSSProperties
