@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Loader2, Mail, Plus, Send, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Archive, Loader2, Mail, Plus, RotateCcw, Send, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/common/toast'
@@ -12,6 +12,7 @@ type Thread = {
   resident_ref: string
   urgent: boolean
   last_message_at: string
+  archived_at?: string | null
   preview: string
   unread: number
 }
@@ -108,10 +109,16 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   const [newResident, setNewResident] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [creating, setCreating] = useState(false)
+  const [view, setView] = useState<'active' | 'archived'>('active')
+  const [busyId, setBusyId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLLIElement>(null)
   const channelName = useId().replace(/[^a-zA-Z0-9]/g, '')
 
-  const activeThread = threads.find((thread) => thread.id === activeId) ?? null
+  const visibleThreads = threads.filter((thread) =>
+    view === 'archived' ? Boolean(thread.archived_at) : !thread.archived_at,
+  )
+  const archivedCount = threads.filter((thread) => Boolean(thread.archived_at)).length
+  const activeThread = visibleThreads.find((thread) => thread.id === activeId) ?? null
 
   // Date separators, WhatsApp-style: one divider per calendar day.
   const rows: Array<{ kind: 'day'; key: string; label: string } | { kind: 'message'; key: string; message: Message }> = []
@@ -155,6 +162,14 @@ export function ChatPanel({ homeName }: { homeName: string }) {
     void loadMessages(activeId)
     void fetch(`/api/portal/threads/${activeId}/messages`, { method: 'PATCH' })
   }, [activeId, loadMessages])
+
+  // Keep the open conversation inside the current tab when switching views.
+  useEffect(() => {
+    if (visibleThreads.length > 0 && !visibleThreads.some((thread) => thread.id === activeId)) {
+      setActiveId(visibleThreads[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, threads, activeId])
 
   useEffect(() => {
     const channel = supabase
@@ -215,6 +230,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
     }
     const thread: Thread = await response.json()
     setThreads((current) => [{ ...thread, preview: newMessage, unread: 0 }, ...current])
+    setView('active')
     setActiveId(thread.id)
     setNewSubject('')
     setNewResident('')
@@ -249,6 +265,23 @@ export function ChatPanel({ homeName }: { homeName: string }) {
     window.location.href = `mailto:${data.to}?subject=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`
   }
 
+  const toggleArchive = async (thread: Thread) => {
+    const archived = !thread.archived_at
+    setBusyId(thread.id)
+    const response = await fetch('/api/portal/threads', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ threadId: thread.id, archived }),
+    })
+    setBusyId(null)
+    if (!response.ok) {
+      toast.error(archived ? 'Conversation could not be archived.' : 'Conversation could not be restored.')
+      return
+    }
+    toast.success(archived ? 'Conversation archived.' : 'Conversation restored to the inbox.')
+    await loadThreads()
+  }
+
   return (
     <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:h-[min(78svh,46rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col border-b border-hairline lg:min-h-0 lg:border-r lg:border-b-0">
@@ -265,6 +298,24 @@ export function ChatPanel({ homeName }: { homeName: string }) {
             {showNew ? <X className="size-3.5" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
             {showNew ? 'Cancel' : 'New'}
           </button>
+        </div>
+
+        <div className="flex gap-1 border-b border-hairline bg-cream p-2">
+          {(['active', 'archived'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setView(option)}
+              aria-pressed={view === option}
+              className={cn(
+                'flex-1 rounded-field px-3 py-1.5 text-xs font-semibold capitalize',
+                view === option ? 'bg-paper text-forest' : 'text-muted-foreground hover:text-forest',
+              )}
+            >
+              {option}
+              {option === 'archived' && archivedCount > 0 ? ` (${archivedCount})` : ''}
+            </button>
+          ))}
         </div>
 
         {showNew && (
@@ -312,10 +363,12 @@ export function ChatPanel({ homeName }: { homeName: string }) {
 
         <ul className="max-h-72 divide-y divide-hairline overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1" aria-label="Threads">
           {loadingThreads && <li className="p-4 text-sm text-muted-foreground">Loading conversations…</li>}
-          {!loadingThreads && threads.length === 0 && (
-            <li className="p-4 text-sm text-muted-foreground">No conversations yet. Start one with the pharmacy.</li>
+          {!loadingThreads && visibleThreads.length === 0 && (
+            <li className="p-4 text-sm text-muted-foreground">
+              {view === 'archived' ? 'No archived conversations.' : 'No conversations yet. Start one with the pharmacy.'}
+            </li>
           )}
-          {threads.map((thread) => (
+          {visibleThreads.map((thread) => (
             <li key={thread.id}>
               <button
                 type="button"
@@ -337,6 +390,12 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                 </div>
                 {thread.resident_ref && <p className="mt-1 font-mono text-xs text-forest-soft">{thread.resident_ref}</p>}
                 <p className="mt-1 truncate text-xs text-muted-foreground">{thread.preview || 'No messages yet'}</p>
+                {thread.archived_at && (
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Archive className="size-3" aria-hidden="true" />
+                    Archived {stamp(thread.archived_at)}
+                  </p>
+                )}
               </button>
             </li>
           ))}
@@ -367,10 +426,31 @@ export function ChatPanel({ homeName }: { homeName: string }) {
                     Urgent
                   </span>
                 )}
+                {activeThread.archived_at && (
+                  <span className="rounded-badge inline-flex items-center gap-1.5 border border-hairline bg-cream px-2.5 py-1 text-xs text-muted-foreground">
+                    <Archive className="size-3.5" aria-hidden="true" />
+                    Archived
+                  </span>
+                )}
                 <span className="rounded-badge inline-flex items-center gap-1.5 bg-brand-tint px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] text-brand uppercase">
                   <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
                   Live
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void toggleArchive(activeThread)}
+                  disabled={busyId === activeThread.id}
+                  className="rounded-field inline-flex h-9 items-center gap-1.5 border border-hairline px-3 text-xs font-semibold text-forest hover:bg-mint disabled:opacity-50"
+                >
+                  {busyId === activeThread.id ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  ) : activeThread.archived_at ? (
+                    <RotateCcw className="size-3.5" aria-hidden="true" />
+                  ) : (
+                    <Archive className="size-3.5" aria-hidden="true" />
+                  )}
+                  {activeThread.archived_at ? 'Restore' : 'Archive'}
+                </button>
               </div>
             </div>
 

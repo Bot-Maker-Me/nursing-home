@@ -41,9 +41,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     .single()
   if (error) return NextResponse.json({ error: 'Message could not be sent.' }, { status: 503 })
 
+  // Replying revives an archived conversation back into the inbox.
   await supabase
     .from('chat_threads')
-    .update({ last_message_at: new Date().toISOString(), ...(urgent ? { urgent: true } : {}) })
+    .update({ last_message_at: new Date().toISOString(), archived_at: null, ...(urgent ? { urgent: true } : {}) })
     .eq('id', threadId)
 
   return NextResponse.json(data)

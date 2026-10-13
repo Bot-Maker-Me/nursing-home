@@ -2,16 +2,27 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
+const THREAD_COLUMNS = 'id, subject, resident_ref, urgent, home_id, last_message_at, created_at'
+
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: threads, error } = await supabase
+  // `archived_at` ships with the chat-archive migration; fall back without it so the
+  // inbox keeps working if that migration has not been applied yet.
+  let { data: threads, error } = await supabase
     .from('chat_threads')
-    .select('id, subject, resident_ref, urgent, home_id, last_message_at, created_at')
+    .select(`${THREAD_COLUMNS}, archived_at`)
     .order('last_message_at', { ascending: false })
-  if (error) return NextResponse.json({ error: 'Chat is not ready until the messaging migration is applied.' }, { status: 503 })
+  if (error) {
+    const fallback = await supabase
+      .from('chat_threads')
+      .select(THREAD_COLUMNS)
+      .order('last_message_at', { ascending: false })
+    if (fallback.error) return NextResponse.json({ error: 'Chat is not ready until the messaging migration is applied.' }, { status: 503 })
+    threads = (fallback.data ?? []).map((thread) => ({ ...thread, archived_at: null }))
+  }
 
   const ids = (threads ?? []).map((thread) => thread.id)
   const previews: Record<string, string> = {}
@@ -68,4 +79,30 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(thread)
+}
+
+export async function PATCH(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limitResult = await rateLimit(`threads-archive:${user.id}`, { limit: 80, windowSeconds: 3600 })
+  if (!limitResult.ok) return rateLimitResponse(limitResult)
+
+  const body = await request.json().catch(() => null)
+  const threadId = String(body?.threadId ?? '')
+  const archived = Boolean(body?.archived)
+  if (!threadId) return NextResponse.json({ error: 'A conversation is required.' }, { status: 400 })
+
+  // Row-level security scopes this to the home's own threads; an out-of-scope update
+  // simply matches no rows and comes back as not found.
+  const { data, error } = await supabase
+    .from('chat_threads')
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', threadId)
+    .select('id')
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: 'Conversation could not be updated.' }, { status: 503 })
+  if (!data) return NextResponse.json({ error: 'Conversation not found.' }, { status: 404 })
+  return NextResponse.json({ ok: true })
 }
