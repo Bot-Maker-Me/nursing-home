@@ -193,3 +193,9 @@ What it does: resolves the thread's home, picks recipients **excluding the sende
 On **iPhone**, notifications only work from an installed app: **Share → Add to Home
 Screen**, then open the portal from the Home Screen. The account screen and chat banner
 show that instruction automatically while the portal is not installed.
+
+Notifications also cannot be enabled while the portal is open *inside another page* (an
+embed, or the workspace preview pane) — browsers block the permission prompt there, and the
+account screen says "open the portal in its own tab" instead of failing silently. Test from
+the deployed URL in a normal tab. If anything else fails, the browser console prints
+`[push] enable failed: <ErrorName>`; the account screen shows the readable version.

@@ -17,9 +17,16 @@ export const VAPID_PUBLIC_KEY =
 
 export const SERVICE_WORKER_URL = '/sw.js'
 
+/** How long to wait for the service worker to become active before giving up. */
+const ACTIVATION_TIMEOUT_MS = 10_000
+
 /** Shown on iOS Safari, where push only works from an installed Home Screen app. */
 export const IOS_PUSH_HINT =
   'Tap Share, then Add to Home Screen, then open from the Home Screen to enable notifications.'
+
+/** Shown when the portal is rendered inside another page (preview pane, iframe, embed). */
+export const EMBED_HINT =
+  'Open the portal in its own tab to enable notifications — browsers block the permission prompt inside an embedded page.'
 
 /** True when this browser can do Web Push at all. */
 export function supportsPush(): boolean {
@@ -47,6 +54,20 @@ export function isStandaloneDisplay(): boolean {
 }
 
 /**
+ * True when the portal is inside another document (the workspace preview, an embed, an
+ * iframe on a partner site). Browsers refuse the notification permission prompt there.
+ */
+export function isEmbedded(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.self !== window.top
+  } catch {
+    // A cross-origin parent makes the comparison throw — that also means "framed".
+    return true
+  }
+}
+
+/**
  * Registers (or finds) the push service worker. Safe to call on every app load: the
  * browser returns the existing registration instead of installing a second one.
  */
@@ -59,6 +80,22 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   } catch {
     return null
   }
+}
+
+/**
+ * Waits until the service worker is ACTIVE.
+ *
+ * `pushManager.subscribe()` rejects with InvalidStateError while the worker is still
+ * installing — which is what a first visit (and every iOS Safari session) looks like.
+ * Returns null when the worker never activates, so the caller can explain that instead
+ * of leaving the button spinning forever.
+ */
+export async function waitForActiveWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!supportsPush()) return null
+  const timeout = new Promise<null>((resolve) => {
+    window.setTimeout(() => resolve(null), ACTIVATION_TIMEOUT_MS)
+  })
+  return await Promise.race([navigator.serviceWorker.ready, timeout])
 }
 
 /** The `applicationServerKey` push managers expect: URL-safe base64 → bytes. */

@@ -46,11 +46,11 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
-
+  // Always show something: iOS penalises pushes that display no notification, and the
+  // defaults below are the approved generic strings, so nothing private can leak.
   let payload = {}
   try {
-    payload = event.data.json()
+    payload = event.data ? event.data.json() : {}
   } catch {
     // Anything that is not JSON cannot be an approved notification — defaults are safe.
     payload = {}

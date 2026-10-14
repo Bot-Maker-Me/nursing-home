@@ -2,12 +2,24 @@
 
 import { Bell, BellOff, Loader2 } from 'lucide-react'
 import { usePushNotifications } from '@/hooks/use-push'
-import { IOS_PUSH_HINT } from '@/lib/push'
+import { EMBED_HINT, IOS_PUSH_HINT } from '@/lib/push'
+
+type PushStatus = ReturnType<typeof usePushNotifications>['status']
+
+const CHIP: Record<PushStatus, { className: string; label: string }> = {
+  on: { className: 'chip-brand', label: 'Enabled on this device' },
+  off: { className: 'chip-neutral', label: 'Off' },
+  blocked: { className: 'chip-warn', label: 'Blocked in this browser' },
+  unsupported: { className: 'chip-neutral', label: 'Not supported in this browser' },
+  'ios-install': { className: 'chip-warn', label: 'Install the portal first' },
+  embedded: { className: 'chip-warn', label: 'Open in its own tab' },
+  loading: { className: 'chip-neutral', label: 'Checking…' },
+}
 
 /**
  * "Enable notifications" control for Account settings. Covers every state the browser can
- * be in: unsupported, blocked, enabled (with a Disable option), and iOS Safari where the
- * portal has not been installed to the Home Screen yet.
+ * be in: unsupported, blocked, enabled (with a Disable option), iOS Safari before the
+ * portal is installed to the Home Screen, and a page that is embedded in another one.
  */
 export function PushNotificationSettings() {
   const { status, busy, error, enable, disable } = usePushNotifications()
@@ -20,9 +32,11 @@ export function PushNotificationSettings() {
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <StatusChip status={status} />
+        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${CHIP[status].className}`}>
+          {CHIP[status].label}
+        </span>
 
-        {status === 'off' && (
+        {(status === 'off' || status === 'embedded') && (
           <button
             type="button"
             onClick={() => void enable()}
@@ -49,9 +63,18 @@ export function PushNotificationSettings() {
 
       {status === 'ios-install' && <p className="text-sm text-forest">{IOS_PUSH_HINT}</p>}
 
+      {status === 'embedded' && <p className="text-sm text-forest">{EMBED_HINT}</p>}
+
       {status === 'blocked' && (
         <p className="text-sm text-muted-foreground">
           Notifications are blocked for this site. Allow them in your browser&rsquo;s site settings, then reload this page.
+        </p>
+      )}
+
+      {status === 'unsupported' && (
+        <p className="text-sm text-muted-foreground">
+          This browser cannot show notifications. On iPhone and iPad, notifications work after adding the portal to your
+          Home Screen.
         </p>
       )}
 
@@ -64,24 +87,4 @@ export function PushNotificationSettings() {
       )}
     </div>
   )
-}
-
-function StatusChip({ status }: { status: ReturnType<typeof usePushNotifications>['status'] }) {
-  const tone: Record<string, string> = {
-    on: 'chip-brand inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-    off: 'chip-neutral inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-    blocked: 'chip-warn inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-    unsupported: 'chip-neutral inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-    'ios-install': 'chip-warn inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-    loading: 'chip-neutral inline-flex items-center px-2.5 py-1 text-xs font-semibold',
-  }
-  const label: Record<string, string> = {
-    on: 'Enabled on this device',
-    off: 'Off',
-    blocked: 'Blocked in this browser',
-    unsupported: 'Not supported in this browser',
-    'ios-install': 'Install the portal first',
-    loading: 'Checking…',
-  }
-  return <span className={tone[status]}>{label[status]}</span>
 }

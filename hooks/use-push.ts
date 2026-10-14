@@ -2,18 +2,22 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  EMBED_HINT,
   VAPID_PUBLIC_KEY,
+  isEmbedded,
   isIosBrowser,
   isStandaloneDisplay,
   registerServiceWorker,
   supportsPush,
   urlBase64ToUint8Array,
+  waitForActiveWorker,
 } from '@/lib/push'
 
 export type PushStatus =
   | 'loading'
   | 'unsupported'
   | 'ios-install'
+  | 'embedded'
   | 'off'
   | 'blocked'
   | 'on'
@@ -26,11 +30,31 @@ type PushApi = {
   disable: () => Promise<void>
 }
 
+/** Turns a thrown browser error into something a nurse can act on. */
+function describePushError(error: unknown): string {
+  if (isEmbedded()) return EMBED_HINT
+  switch ((error as { name?: string })?.name ?? '') {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'Your browser refused the notification permission. Allow notifications for this site in your browser settings, then reload this page.'
+    case 'InvalidStateError':
+      return 'The notification service was still starting up. Reload the page and try again.'
+    case 'AbortError':
+      return 'Your browser could not reach its push service. Check your connection and try again.'
+    case 'NotSupportedError':
+      return 'This browser could not create a push subscription for this portal.'
+    case 'TypeError':
+      return 'Notifications cannot be enabled in this context — open the portal in its own tab.'
+    default:
+      return 'Notifications could not be enabled on this device.'
+  }
+}
+
 /**
  * The portal's push-notification state machine: not supported / blocked / enabled (with a
- * Disable option) plus iOS Safari's "install it first" case. Subscriptions are stored in
- * public.push_subscriptions (one row per device, endpoint-unique) via the portal API, and
- * removed again when the user disables notifications.
+ * Disable option), plus iOS Safari's "install it first" and the embedded-page case.
+ * Subscriptions are stored in public.push_subscriptions (one row per device,
+ * endpoint-unique) through the portal API, and removed again when the user disables them.
  */
 export function usePushNotifications(): PushApi {
   const [status, setStatus] = useState<PushStatus>('loading')
@@ -52,6 +76,12 @@ export function usePushNotifications(): PushApi {
       setStatus('blocked')
       return
     }
+    // An embedded page can never show the permission prompt. If permission was granted
+    // on this origin already we carry on — the subscription itself still works.
+    if (isEmbedded() && Notification.permission !== 'granted') {
+      setStatus('embedded')
+      return
+    }
     const registration = await registerServiceWorker()
     if (!registration) {
       setStatus('unsupported')
@@ -69,21 +99,36 @@ export function usePushNotifications(): PushApi {
     setBusy(true)
     setError(null)
     try {
-      // Ask first, before any `await`: Safari only shows the prompt while the call is
-      // still inside the user's click.
-      const permission = await Notification.requestPermission()
-      if (permission === 'denied') {
-        setStatus('blocked')
-        return
-      }
-      if (permission !== 'granted') {
-        setStatus('off')
+      if (typeof Notification.requestPermission !== 'function') {
+        setStatus('unsupported')
         return
       }
 
-      const registration = await registerServiceWorker()
+      // Ask first, before any `await`: Safari only shows the prompt while the call is
+      // still inside the user's click.
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        if (isEmbedded()) {
+          setStatus('embedded')
+          setError(EMBED_HINT)
+        } else if (permission === 'denied') {
+          setStatus('blocked')
+        } else {
+          setStatus('off')
+        }
+        return
+      }
+
+      if (!(await registerServiceWorker())) {
+        setError('The notification service could not start. Reload the page and try again.')
+        return
+      }
+
+      // pushManager.subscribe() needs an ACTIVE worker; on a first visit — and always on
+      // iOS — the registration is still installing, which throws InvalidStateError.
+      const registration = await waitForActiveWorker()
       if (!registration) {
-        setStatus('unsupported')
+        setError('The notification service did not start in time. Reload the page and try again.')
         return
       }
 
@@ -109,15 +154,27 @@ export function usePushNotifications(): PushApi {
         }),
       })
       if (!response.ok) {
+        // The portal explains itself here (e.g. "…until the push migration is applied"),
+        // which is far more useful than a generic failure.
+        const data = (await response.json().catch(() => null)) as { error?: unknown } | null
         await subscription.unsubscribe()
         setStatus('off')
-        setError('This device could not be registered for notifications. Please try again.')
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'This device could not be registered for notifications. Please try again.',
+        )
         return
       }
       setStatus('on')
-    } catch {
-      setStatus('off')
-      setError('Notifications could not be enabled on this device.')
+    } catch (caught) {
+      // Keep the reason visible in the console; the user gets the readable version.
+      console.warn(
+        '[push] enable failed:',
+        (caught as { name?: string })?.name ?? 'unknown',
+        caught instanceof Error ? caught.message : caught,
+      )
+      setError(describePushError(caught))
     } finally {
       setBusy(false)
     }
@@ -138,7 +195,8 @@ export function usePushNotifications(): PushApi {
         await subscription.unsubscribe()
       }
       setStatus('off')
-    } catch {
+    } catch (caught) {
+      console.warn('[push] disable failed:', (caught as { name?: string })?.name ?? 'unknown')
       setError('Notifications could not be turned off on this device.')
     } finally {
       setBusy(false)
