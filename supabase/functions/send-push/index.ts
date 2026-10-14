@@ -114,14 +114,20 @@ async function recipientsFor(
 /**
  * Sends one payload to every subscription given, and reports what the push service said.
  *
- * `homeId` restricts a message push to the thread's own tenant; it is null for a test
- * alert, which only ever targets the caller's own devices.
+ * `restrictToHomeId` filters out devices that belong to a *different* home. It is set when
+ * the recipients are that home's own portal users, and null when they are not tenant-scoped
+ * at all — pharmacy-side staff (who serve every home) and the caller's own devices for a
+ * test alert.
+ *
+ * Getting this wrong is a silent failure: a pharmacy account whose profile carries a
+ * `home_id` gets that tenant stamped on its subscriptions, so scoping it to the thread's home
+ * drops every message from any other home and reports `sent: 0` with no error at all.
  */
 async function deliver(
   supabase: ReturnType<typeof createClient>,
   rows: SubscriptionRow[],
   payload: string,
-  homeId: string | null,
+  restrictToHomeId: string | null,
 ): Promise<DeliveryResult> {
   let sent = 0
   let pruned = 0
@@ -129,8 +135,8 @@ async function deliver(
   let lastStatus = 0
 
   for (const row of rows) {
-    // Same tenant only. Rows written before a tenant existed (null) are kept.
-    if (homeId && row.tenant_id && String(row.tenant_id) !== homeId) continue
+    // Same home only. Rows written before a tenant existed (null) are kept.
+    if (restrictToHomeId && row.tenant_id && String(row.tenant_id) !== restrictToHomeId) continue
     try {
       await webpush.sendNotification(
         { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
@@ -266,11 +272,17 @@ Deno.serve(async (request) => {
       body = pharmacyName ? `You have a new message from ${pharmacyName}` : BODY_FROM_PHARMACY
     }
 
+    // Home users are scoped to the thread's own home — a home must never be notified about
+    // another home's messages. Pharmacy-side recipients serve every home and must not be
+    // scoped, or a pharmacy account with a `home_id` on its profile receives nothing from
+    // the other homes.
+    const restrictToHomeId = senderRole === 'pharmacy' ? homeId : null
+
     const result = await deliver(
       supabase,
       subscriptionRows as SubscriptionRow[],
       JSON.stringify({ title: TITLE, body, data: { url: CLICK_URL } }),
-      homeId,
+      restrictToHomeId,
     )
     return json({ ok: true, ...result })
   } catch (error) {
