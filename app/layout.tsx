@@ -14,14 +14,14 @@ const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces' })
 const plexMono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-plex-mono' })
 
 export const metadata: Metadata = {
-  title: "Henderson's Pharmacy — Client Portal",
+  title: 'LTC Portal',
   description:
-    "The secure portal for long-term care homes served by Henderson's Pharmacy: messaging, delivery tracking, order cut-offs, policies, and emergency contacts.",
+    'The secure LTC Portal for long-term care homes: messaging, delivery tracking, order cut-offs, policies, and emergency contacts.',
   robots: { index: false, follow: false },
   // Required for Web Push: iOS only delivers notifications to an installed (Home Screen)
   // app, which is what this manifest turns the portal into.
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, title: "Henderson's Portal", statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'LTC Portal', statusBarStyle: 'default' },
 }
 
 export const viewport: Viewport = {

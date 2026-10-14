@@ -5,7 +5,7 @@ import { Logo } from '@/components/brand/logo'
 import { AuthTicket } from '@/components/auth/auth-ticket'
 
 export const metadata: Metadata = {
-  title: "Sign in — Henderson's Pharmacy Portal",
+  title: 'Sign in — LTC Portal',
 }
 
 export default async function SignInPage({

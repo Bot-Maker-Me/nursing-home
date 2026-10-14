@@ -8,7 +8,7 @@ export function SiteHeader() {
     <header className="border-b border-hairline">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-10">
         <Reveal variant="fade" delay={0}>
-          <Link href="/" aria-label="Henderson's Pharmacy portal home">
+          <Link href="/" aria-label="LTC Portal home">
             <Logo />
           </Link>
         </Reveal>

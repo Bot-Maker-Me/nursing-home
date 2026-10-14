@@ -1,7 +1,7 @@
 {
-  "name": "Henderson's Pharmacy Client Portal",
-  "short_name": "Henderson's",
-  "description": "Secure messaging with Henderson's Pharmacy, plus delivery tracking, order cut-offs and policies.",
+  "name": "LTC Portal",
+  "short_name": "LTC Portal",
+  "description": "Secure messaging with your pharmacy, plus delivery tracking, order cut-offs and policies.",
   "start_url": "/portal",
   "scope": "/",
   "display": "standalone",

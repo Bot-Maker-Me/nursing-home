@@ -181,10 +181,16 @@ Leave JWT verification ON: the trigger authenticates with the service-role key, 
 function additionally refuses any caller whose token is not `service_role`.
 
 What it does: resolves the thread's home, picks recipients **excluding the sender**
-(pharmacy-sent → the home's portal users; home-sent → users with a
-`pharmacy_home_access` row for that home), sends generic copy only
+(pharmacy-sent → the home's portal users; home-sent → the accounts with the `pharmacy`
+or `admin` role, i.e. whoever runs the pharmacy console), sends generic copy only
 (`New message` / `You have a new message…`), and deletes subscriptions that answer
 `404`/`410`.
+
+A `{"ok":true,"sent":0,"reason":"no_recipients"}` reply means the other side of that
+thread resolved to nobody — the thread's `home_id` has no portal users on it, or the
+sender is its only member. Remember the sender is always excluded by design: messaging
+yourself never notifies you. Use the portal's **Send a test alert** button to prove your
+own device, and have the *other* side send a message to prove the trigger.
 
 ### 6d. Verify
 

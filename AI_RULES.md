@@ -1,6 +1,6 @@
 # AI_RULES.md
 
-Project guidance for the Henderson's Pharmacy client portal. Keep this file accurate and scan-friendly.
+Project guidance for the LTC Portal (the Henderson's Pharmacy client portal). Keep this file accurate and scan-friendly.
 
 ## Tech Stack
 - **Next.js 16 (App Router)** with React 19 — server components by default; layouts and pages in `app/`, API route handlers in `app/api/**/route.ts`.

@@ -85,6 +85,9 @@ function callerRole(request: Request): string {
   }
 }
 
+/** The accounts that make up the pharmacy side of a conversation (the pharmacy console). */
+const PHARMACY_ROLES = ['pharmacy', 'admin']
+
 async function recipientsFor(
   supabase: ReturnType<typeof createClient>,
   { senderRole, homeId, senderId }: { senderRole: string; homeId: string; senderId: string },
@@ -97,10 +100,15 @@ async function recipientsFor(
     return (data ?? []).map((row) => String(row.id))
   }
 
-  // Home-sent: the pharmacy staff granted access to that home.
-  const { data, error } = await supabase.from('pharmacy_home_access').select('user_id').eq('home_id', homeId)
+  // Home-sent: whoever runs the pharmacy console. This used to read a `pharmacy_home_access`
+  // table, but nothing in this database ever created it — so the lookup errored, the
+  // recipient list came back empty, and every home-sent message notified nobody (the trigger
+  // then recorded `{"ok":true,"sent":0,"reason":"no_recipients"}` in net._http_response).
+  const { data, error } = await supabase.from('profiles').select('id, role')
   if (error) return []
-  return (data ?? []).map((row) => String((row as { user_id?: unknown }).user_id ?? ''))
+  return (data ?? [])
+    .filter((row) => PHARMACY_ROLES.includes(String((row as { role?: unknown }).role ?? '').toLowerCase()))
+    .map((row) => String(row.id))
 }
 
 /**

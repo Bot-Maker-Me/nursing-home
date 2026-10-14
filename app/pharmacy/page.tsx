@@ -2,7 +2,7 @@ import { ThreadConsole } from '@/components/admin/thread-console'
 import { createClient } from '@/lib/supabase/server'
 
 export const metadata = {
-  title: "Conversations — Henderson's Pharmacy",
+  title: 'Conversations — LTC Portal',
 }
 
 export default async function PharmacyConversationsPage() {

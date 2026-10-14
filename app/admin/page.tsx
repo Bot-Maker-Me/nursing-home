@@ -4,7 +4,7 @@ import { TeamConsole } from '@/components/admin/team-console'
 import { createClient } from '@/lib/supabase/server'
 
 export const metadata: Metadata = {
-  title: "Team console — Henderson's Pharmacy",
+  title: 'Team console — LTC Portal',
 }
 
 export default async function AdminPage() {

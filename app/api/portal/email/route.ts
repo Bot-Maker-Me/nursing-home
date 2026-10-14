@@ -27,11 +27,11 @@ export async function POST(request: Request) {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      from: process.env.MAIL_FROM ?? "Henderson's Portal <onboarding@resend.dev>",
+      from: process.env.MAIL_FROM ?? 'LTC Portal <onboarding@resend.dev>',
       to: [PHARMACY_EMAIL],
       reply_to: user.email ?? undefined,
       subject,
-      text: `${message}\n\n— Sent from the Henderson's Pharmacy client portal`,
+      text: `${message}\n\n— Sent from the LTC Portal`,
     }),
   }).catch(() => null)
 
