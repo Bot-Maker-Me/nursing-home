@@ -1,4 +1,5 @@
 import { Card, PageHeader } from '@/components/portal/page-header'
+import { PushNotificationSettings } from '@/components/portal/push-notifications'
 import { getCurrentUser, getPortalProfile, getTenantName } from '@/lib/auth'
 
 export default async function AccountPage() {
@@ -28,6 +29,9 @@ export default async function AccountPage() {
           ))}
         </dl>
         <p className="mt-4 text-xs text-muted-foreground">Use the sign-out control in the sidebar to end your session on this device.</p>
+      </Card>
+      <Card className="mt-8" eyebrow="Notifications" title="Message alerts">
+        <PushNotificationSettings />
       </Card>
     </>
   )

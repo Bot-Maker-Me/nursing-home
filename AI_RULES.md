@@ -29,11 +29,13 @@ Project guidance for the Henderson's Pharmacy client portal. Keep this file accu
 - **Fonts**: the `next/font` setup in `app/layout.tsx` is the single loader — Inter (`--font-sans`) and JetBrains Mono (`--font-mono`) for the app, plus Fraunces / Manrope / IBM Plex Mono, which are applied **only** by the marketing scope. Don't add further font loaders.
 - **State/outside data**: rely on React hooks (`useState`/`useEffect`) and server components. Don't introduce Redux, Zustand, React Query, etc. without approval.
 - **Utilities/helpers**: keep one-off helpers local; add shared ones to `lib/`. Sample/static data goes in `lib/sample-data.ts`.
+- **Web Push**: `lib/push.ts` holds the VAPID public key and browser helpers, `hooks/use-push.ts` the permission/subscription state, `public/sw.js` + `public/manifest.json` the per-origin client half, and `app/api/portal/push/route.ts` stores the subscription. Sending lives once in the `send-push` Edge Function (`supabase/functions/`, Deno — excluded from the Next tsconfig) fired by the `portal_messages` trigger. Notification text is generic by design: never message content, resident names or medication. `VAPID_PRIVATE_KEY` stays in Edge Function secrets only — never in any `NEXT_PUBLIC_*` variable.
 
 ## Project Conventions
 - Routes and their `page.tsx`/`layout.tsx` files live under `app/` (e.g. `app/portal/*`, `app/admin`, `app/sign-in`). Keep the existing route structure.
 - Feature components live in `components/<area>/` (e.g. `components/portal/`, `components/landing/`, `components/admin/`).
 - Reusable client hooks live in `hooks/` (e.g. `hooks/use-cutoff.ts`, which must keep `'use client'`).
+- Supabase Edge Functions (Deno) live in `supabase/functions/<name>/index.ts` and are excluded from the Next `tsconfig.json`, so keep `npm:`/`Deno` APIs there and Node/Next code out.
 - Default to server components; add `'use client'` only for interactivity (state, effects, event handlers).
 - Session refresh runs through the Next 16 **`proxy.ts`** file (the renamed middleware). Do not create a `middleware.ts`.
 - After changing a component that a page should render, wire it into the relevant `app/**/page.tsx` so it actually appears.

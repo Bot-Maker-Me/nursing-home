@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   description:
     "The secure portal for long-term care homes served by Henderson's Pharmacy: messaging, delivery tracking, order cut-offs, policies, and emergency contacts.",
   robots: { index: false, follow: false },
+  // Required for Web Push: iOS only delivers notifications to an installed (Home Screen)
+  // app, which is what this manifest turns the portal into.
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, title: "Henderson's Portal", statusBarStyle: 'default' },
 }
 
 export const viewport: Viewport = {

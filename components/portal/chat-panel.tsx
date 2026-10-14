@@ -5,6 +5,7 @@ import { AlertTriangle, Archive, Loader2, Mail, Plus, RotateCcw, Send, ShieldChe
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/common/toast'
+import { PushBanner } from '@/components/portal/push-banner'
 
 type Thread = {
   id: string
@@ -283,7 +284,9 @@ export function ChatPanel({ homeName }: { homeName: string }) {
   }
 
   return (
-    <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:h-[min(78svh,46rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
+    <>
+      <PushBanner />
+      <div className="mt-8 grid grid-cols-1 border border-hairline bg-paper lg:h-[min(78svh,46rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col border-b border-hairline lg:min-h-0 lg:border-r lg:border-b-0">
         <div className="flex items-center justify-between gap-2 border-b border-hairline p-4">
           <div>
@@ -523,6 +526,7 @@ export function ChatPanel({ homeName }: { homeName: string }) {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }

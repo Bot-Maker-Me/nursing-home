@@ -378,3 +378,97 @@ do $$ begin
 exception when others then
   raise notice 'Skipped storage INSERT policy (create it in Storage → Policies): %', sqlerrm;
 end $$;
+
+-- ============================================================
+-- 9. Web Push notifications
+-- ============================================================
+-- One row per browser/device that opted in. RLS keeps every user to their own rows;
+-- the service-role key used by the send-push Edge Function bypasses it.
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tenant_id uuid,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists push_subscriptions_endpoint_key on public.push_subscriptions (endpoint);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+grant select, insert, update, delete on public.push_subscriptions to service_role;
+
+drop policy if exists push_subscriptions_own_read on public.push_subscriptions;
+drop policy if exists push_subscriptions_own_insert on public.push_subscriptions;
+drop policy if exists push_subscriptions_own_update on public.push_subscriptions;
+drop policy if exists push_subscriptions_own_delete on public.push_subscriptions;
+create policy push_subscriptions_own_read   on public.push_subscriptions for select to authenticated using (user_id = (select auth.uid()));
+create policy push_subscriptions_own_insert on public.push_subscriptions for insert to authenticated with check (user_id = (select auth.uid()));
+create policy push_subscriptions_own_update on public.push_subscriptions for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy push_subscriptions_own_delete on public.push_subscriptions for delete to authenticated using (user_id = (select auth.uid()));
+
+-- pg_net fires the send-push Edge Function after an insert, off the request path.
+do $$ begin
+  create extension if not exists pg_net;
+exception when others then
+  raise notice 'pg_net is unavailable (%); the push trigger will be created but idle.', sqlerrm;
+end $$;
+
+-- Configuration lives in Supabase Vault (never in this file, never in client code):
+--   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/send-push', 'push_function_url');
+--   select vault.create_secret('<service_role key>', 'push_service_role_key');
+-- Without both secrets the trigger is a no-op and messaging keeps working.
+create or replace function public.send_push_on_portal_message() returns trigger
+language plpgsql security definer set search_path = public, extensions, vault as $$
+declare
+  function_url text;
+  service_key text;
+begin
+  begin
+    select decrypted_secret into function_url from vault.decrypted_secrets where name = 'push_function_url' limit 1;
+    select decrypted_secret into service_key from vault.decrypted_secrets where name = 'push_service_role_key' limit 1;
+  exception when others then
+    function_url := null;
+    service_key := null;
+  end;
+
+  if function_url is null or service_key is null then
+    return new;
+  end if;
+
+  -- Thread-less rows have no scope to notify.
+  if new.thread_id is null then
+    return new;
+  end if;
+
+  begin
+    perform net.http_post(
+      url := function_url,
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || service_key
+      ),
+      body := jsonb_build_object(
+        'id', new.id,
+        'thread_id', new.thread_id,
+        'user_id', new.user_id,
+        'sender_role', new.sender_role
+      ),
+      timeout_milliseconds := 5000
+    );
+  exception when others then
+    null; -- Push is best-effort; it must never fail the message insert.
+  end;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists portal_messages_send_push on public.portal_messages;
+create trigger portal_messages_send_push
+  after insert on public.portal_messages
+  for each row execute function public.send_push_on_portal_message();
+
+revoke all on function public.send_push_on_portal_message() from public, anon, authenticated;

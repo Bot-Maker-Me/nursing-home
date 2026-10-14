@@ -73,9 +73,13 @@ vercel --prod       # deploy to production
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://ayvpdpthxwplbsmhpbva.supabase.co` | public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key | public |
 | `SUPABASE_SERVICE_ROLE_KEY` | your service-role key | **Sensitive** |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the project's VAPID public key | public, optional — `lib/push.ts` already carries it |
 | `RESEND_API_KEY` | *(optional)* | enables server-side email |
 | `PHARMACY_EMAIL` | *(optional)* | defaults to pharmacy@hendersonsportal.ca |
 | `MAIL_FROM` | *(optional)* | Resend "from" address |
+
+Never put `VAPID_PRIVATE_KEY` on the hosting side — it belongs only to Edge Function
+secrets (see section 6).
 
 After adding/changing env vars, **redeploy** so they take effect.
 
@@ -110,3 +114,82 @@ expires quickly and must be re-authorized.
 4. As a portal (nurse) user: open **Connect with Pharmacy**, start a conversation —
    the message appears live in the admin console.
 5. In **Data manager**, download a CSV template, edit it, import it → records appear.
+
+---
+
+## 6. Web Push notifications (browser alerts for portal chat)
+
+Three pieces, in this order: the database, the Edge Function secrets, then the function.
+Both this portal and the Pharma Portal write to the same `public.portal_messages` table, so
+the **sending side exists once, here** — the Pharma Portal only has to register its own
+service worker and subscriptions.
+
+### 6a. Database (Supabase → SQL Editor)
+
+Run `supabase/migrations/20261016000000_push_subscriptions.sql` (already included in
+`supabase/schema.sql` as section 9 for fresh setups). It creates `push_subscriptions` with
+owner-only RLS, enables `pg_net`, and adds the `portal_messages_send_push` trigger that
+fires the Edge Function after every insert.
+
+**Trigger choice:** pg_net + a database trigger, *not* a Supabase Database Webhook. The
+trigger covers inserts from any client (this portal's API routes and the Pharma Portal
+alike), runs asynchronously so it can never slow down or block a message insert, and keeps
+its configuration in the database instead of the dashboard.
+
+Then store the two values the trigger needs in **Vault** (SQL Editor, run once — replace
+both placeholders with your own values):
+
+```sql
+select vault.create_secret(
+  'https://<your-project-ref>.supabase.co/functions/v1/send-push',
+  'push_function_url');
+select vault.create_secret('<your service_role key>', 'push_service_role_key');
+```
+
+The service-role key never appears in this repo, in client code, or in any `NEXT_PUBLIC_*`
+variable. Until both secrets exist the trigger is a silent no-op and chat keeps working.
+
+### 6b. Edge Function secrets (Dashboard → Project → Edge Functions → Manage Secrets)
+
+| Name | Value |
+|------|-------|
+| `VAPID_PUBLIC_KEY` | the project's VAPID public key |
+| `VAPID_PRIVATE_KEY` | the project's VAPID **private** key — server secret |
+| `VAPID_SUBJECT` | `mailto:param@pharmastrategies.ca` |
+
+### 6c. Deploy `send-push`
+
+`supabase/functions/send-push/index.ts` (Deno + `web-push`). Either paste it into
+Dashboard → Edge Functions → **send-push** → Deploy, or with the CLI:
+
+```bash
+supabase functions deploy send-push
+```
+
+Leave JWT verification ON: the trigger authenticates with the service-role key, and the
+function additionally refuses any caller whose token is not `service_role`.
+
+What it does: resolves the thread's home, picks recipients **excluding the sender**
+(pharmacy-sent → the home's portal users; home-sent → users with a
+`pharmacy_home_access` row for that home), sends generic copy only
+(`New message` / `You have a new message…`), and deletes subscriptions that answer
+`404`/`410`.
+
+### 6d. Verify
+
+1. Sign in as a portal user → **Account → Message alerts → Enable notifications**
+   (or use the banner above the chat) and accept the browser prompt.
+2. Confirm a row exists: `select user_id, tenant_id, endpoint from public.push_subscriptions;`
+3. Send a message from the pharmacy side, then check that pg_net fired:
+
+   ```sql
+   select status_code, content, created from net._http_response order by created desc limit 5;
+   ```
+
+   `status_code = 200` with `{"ok":true,"sent":1}` means the push went out. A `403` means
+   the Vault `push_service_role_key` is wrong; no row at all means `push_function_url` is
+   missing.
+
+On **iPhone**, notifications only work from an installed app: **Share → Add to Home
+Screen**, then open the portal from the Home Screen. The account screen and chat banner
+show that instruction automatically while the portal is not installed.

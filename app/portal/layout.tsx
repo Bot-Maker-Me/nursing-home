@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { PortalSidebar } from '@/components/portal/portal-sidebar'
+import { PushRegistrar } from '@/components/portal/push-registrar'
 import { getCurrentHome, getCurrentUser, getPortalProfile, getTenantName } from '@/lib/auth'
 import { resolveHomeTheme, themeStyle } from '@/lib/home-themes'
 
@@ -24,6 +25,8 @@ export default async function PortalLayout({ children }: { children: React.React
       data-home-theme={theme?.slug}
       style={theme ? themeStyle(theme) : undefined}
     >
+      {/* Registers the push service worker for this origin; renders nothing. */}
+      <PushRegistrar />
       <PortalSidebar
         profile={{
           name: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Partner',
