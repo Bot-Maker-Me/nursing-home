@@ -1,6 +1,7 @@
 'use client'
 
-import { Bell, BellOff, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, BellOff, Loader2, Send } from 'lucide-react'
 import { usePushNotifications } from '@/hooks/use-push'
 import { EMBED_HINT, IOS_PUSH_HINT } from '@/lib/push'
 
@@ -20,9 +21,40 @@ const CHIP: Record<PushStatus, { className: string; label: string }> = {
  * "Enable notifications" control for Account settings. Covers every state the browser can
  * be in: unsupported, blocked, enabled (with a Disable option), iOS Safari before the
  * portal is installed to the Home Screen, and a page that is embedded in another one.
+ *
+ * Once a device is enabled it also offers a test alert: a real push only happens when the
+ * pharmacy replies, so without this there is no way to tell a working device from a broken
+ * one until it matters.
  */
 export function PushNotificationSettings() {
   const { status, busy, error, enable, disable } = usePushNotifications()
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  const sendTest = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const response = await fetch('/api/portal/push/test', { method: 'POST' })
+      const data = (await response.json().catch(() => null)) as { error?: unknown; sent?: unknown } | null
+      if (!response.ok) {
+        setTestResult({
+          ok: false,
+          message:
+            typeof data?.error === 'string' ? data.error : 'The test alert could not be sent. Please try again.',
+        })
+        return
+      }
+      setTestResult({
+        ok: true,
+        message: `Test alert sent to ${typeof data?.sent === 'number' ? data.sent : 1} device. Close this tab — it should still appear.`,
+      })
+    } catch {
+      setTestResult({ ok: false, message: 'The test alert could not be sent. Check your connection and try again.' })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -49,17 +81,34 @@ export function PushNotificationSettings() {
         )}
 
         {status === 'on' && (
-          <button
-            type="button"
-            onClick={() => void disable()}
-            disabled={busy}
-            className="inline-flex h-10 items-center gap-2 border border-hairline px-4 text-sm font-semibold text-forest hover:bg-mint disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <BellOff className="size-4" aria-hidden="true" />}
-            Disable
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void sendTest()}
+              disabled={testing}
+              className="inline-flex h-10 items-center gap-2 bg-forest px-4 text-sm font-semibold text-cream hover:bg-forest-deep disabled:opacity-50"
+            >
+              {testing ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Send className="size-4" aria-hidden="true" />}
+              Send a test alert
+            </button>
+            <button
+              type="button"
+              onClick={() => void disable()}
+              disabled={busy}
+              className="inline-flex h-10 items-center gap-2 border border-hairline px-4 text-sm font-semibold text-forest hover:bg-mint disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <BellOff className="size-4" aria-hidden="true" />}
+              Disable
+            </button>
+          </>
         )}
       </div>
+
+      {testResult && (
+        <p role={testResult.ok ? 'status' : 'alert'} className={`text-sm ${testResult.ok ? 'text-forest' : 'text-terracotta'}`}>
+          {testResult.message}
+        </p>
+      )}
 
       {status === 'ios-install' && <p className="text-sm text-forest">{IOS_PUSH_HINT}</p>}
 

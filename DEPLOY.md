@@ -191,6 +191,10 @@ What it does: resolves the thread's home, picks recipients **excluding the sende
 1. Sign in as a portal user → **Account → Message alerts → Enable notifications**
    (or use the banner above the chat) and accept the browser prompt.
 2. Confirm a row exists: `select user_id, tenant_id, endpoint from public.push_subscriptions;`
+3. Press **Send a test alert**. It goes through the same function a real reply does, so it
+   is the quickest way to prove a device end-to-end: close the tab first, and the alert
+   should still arrive. If it fails, the message names the cause — `bad_vapid_keys`,
+   a missing subscription, or a refused send — instead of failing silently.
 3. Send a message from the pharmacy side, then check that pg_net fired:
 
    ```sql

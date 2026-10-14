@@ -6,9 +6,10 @@
  * per-origin, so every origin needs its own copy of this file.
  *
  * PRIVACY GUARD — this is a healthcare setting, so a lock screen may never carry message
- * content, resident names or medication names. Only two approved strings are ever shown
- * ('New message' + a body that starts with 'You have a new message'). ANY other title or
- * body is discarded, even if the sender asks for it.
+ * content, resident names or medication names. Only the approved generic strings below are
+ * ever shown: 'New message' with a body that starts with 'You have a new message', or the
+ * copy for the portal's own test alert. ANY other title or body is discarded, even if the
+ * sender asks for it.
  */
 
 const ICON = '/apple-icon.png'
@@ -18,8 +19,8 @@ const DEFAULT_URL = '/portal/messages'
 
 const SAFE_TITLE = 'New message'
 const SAFE_BODY = 'You have a new message'
-const TITLE_PATTERN = /^New message$/
-const BODY_PATTERN = /^You have a new message( from [^<>]{1,60})?$/
+const TITLE_PATTERN = /^(New message|Message alerts are on)$/
+const BODY_PATTERN = /^(You have a new message( from [^<>]{1,60})?|Test alert from your pharmacy portal)$/
 
 /** Discards anything that is not exactly one of the approved, generic strings. */
 function safeText(value, fallback, pattern) {
