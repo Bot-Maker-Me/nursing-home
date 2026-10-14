@@ -12,8 +12,31 @@
 const DEFAULT_VAPID_PUBLIC_KEY =
   'BDaCCchx_dz_t_BhGHyYhUxBJn3HRlgzNp8A1odmLS65lq_MdPP0dGfqVZ_lgwzDGIayOgmUIvxz-de04OFk2VNU'
 
-export const VAPID_PUBLIC_KEY =
-  (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '').trim() || DEFAULT_VAPID_PUBLIC_KEY
+/**
+ * A VAPID public key is 65 bytes, i.e. 87–88 URL-safe base64 characters. Anything else
+ * means the value was mistyped, truncated, or pasted with a line break inside it — and a
+ * wrapped terminal paste is the usual culprit. `window.atob()` then throws
+ * InvalidCharacterError and the Enable button fails with a message that hides the cause,
+ * so an unusable override falls back to the known-good key shipped here instead.
+ */
+function sanitizeVapidPublicKey(value: string | undefined): string | null {
+  if (!value) return null
+  // Whitespace is never part of a key, so dropping it undoes a wrapped paste.
+  const cleaned = value.replace(/\s+/g, '')
+  if (!/^[A-Za-z0-9_-]+$/.test(cleaned)) return null
+  if (cleaned.length < 87 || cleaned.length > 88) return null
+  return cleaned
+}
+
+const configuredVapidPublicKey = sanitizeVapidPublicKey(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && !configuredVapidPublicKey) {
+  // Never log the value itself — only the fact that it was rejected.
+  console.warn(
+    '[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not a valid VAPID public key; using the built-in key.',
+  )
+}
+
+export const VAPID_PUBLIC_KEY = configuredVapidPublicKey ?? DEFAULT_VAPID_PUBLIC_KEY
 
 export const SERVICE_WORKER_URL = '/sw.js'
 

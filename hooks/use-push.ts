@@ -33,7 +33,8 @@ type PushApi = {
 /** Turns a thrown browser error into something a nurse can act on. */
 function describePushError(error: unknown): string {
   if (isEmbedded()) return EMBED_HINT
-  switch ((error as { name?: string })?.name ?? '') {
+  const name = (error as { name?: string })?.name ?? ''
+  switch (name) {
     case 'NotAllowedError':
     case 'SecurityError':
       return 'Your browser refused the notification permission. Allow notifications for this site in your browser settings, then reload this page.'
@@ -45,8 +46,12 @@ function describePushError(error: unknown): string {
       return 'This browser could not create a push subscription for this portal.'
     case 'TypeError':
       return 'Notifications cannot be enabled in this context — open the portal in its own tab.'
+    case 'InvalidCharacterError':
+    case 'DataError':
+      return 'This portal’s notification key is not valid, so no device can subscribe. Ask the pharmacy to check the push configuration.'
     default:
-      return 'Notifications could not be enabled on this device.'
+      // Naming the browser's own error keeps this diagnosable instead of a dead end.
+      return `Notifications could not be enabled on this device (${name || 'no error name'}).`
   }
 }
 

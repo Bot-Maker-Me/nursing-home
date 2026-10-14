@@ -91,8 +91,22 @@ Deno.serve(async (request) => {
     if (callerRole(request) !== 'service_role') return json({ error: 'Forbidden' }, 403)
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ ok: false, reason: 'not_configured' })
     if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return json({ ok: false, reason: 'no_vapid_keys' })
+    // A mistyped or line-wrapped key pair (a common paste accident) makes web-push throw on
+    // every send, which looks exactly like "notifications do nothing". Say so instead.
+    if (VAPID_PUBLIC_KEY.length < 80 || VAPID_PRIVATE_KEY.length < 40) {
+      console.error('send-push: VAPID key lengths look wrong', {
+        publicLength: VAPID_PUBLIC_KEY.length,
+        privateLength: VAPID_PRIVATE_KEY.length,
+      })
+      return json({ ok: false, reason: 'bad_vapid_keys' })
+    }
 
-    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    try {
+      webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    } catch {
+      console.error('send-push: setVapidDetails rejected the configured keys')
+      return json({ ok: false, reason: 'bad_vapid_keys' })
+    }
 
     const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null
     // Accepts the plain trigger payload, and the Supabase Database Webhook shape.
@@ -162,6 +176,8 @@ Deno.serve(async (request) => {
 
     let sent = 0
     let pruned = 0
+    let failed = 0
+    let lastStatus = 0
     for (const row of subscriptionRows as SubscriptionRow[]) {
       // Same tenant only. Rows written before a tenant existed (null) are kept.
       if (row.tenant_id && String(row.tenant_id) !== homeId) continue
@@ -172,16 +188,19 @@ Deno.serve(async (request) => {
         )
         sent++
       } catch (error) {
-        const statusCode = (error as { statusCode?: number })?.statusCode
+        const statusCode = (error as { statusCode?: number })?.statusCode ?? 0
+        lastStatus = statusCode
         // 404/410 mean the subscription is gone (uninstalled, revoked, expired).
         if (statusCode === 404 || statusCode === 410) {
           await supabase.from('push_subscriptions').delete().eq('id', row.id)
           pruned++
+        } else {
+          failed++
         }
       }
     }
 
-    return json({ ok: true, sent, pruned })
+    return json({ ok: true, sent, pruned, failed, lastStatus })
   } catch (error) {
     // Never surface internals (and never the VAPID private key) to the caller.
     console.error('send-push failed:', (error as Error)?.name ?? 'unknown error')
