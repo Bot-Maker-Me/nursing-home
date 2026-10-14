@@ -157,6 +157,17 @@ variable. Until both secrets exist the trigger is a silent no-op and chat keeps 
 | `VAPID_PRIVATE_KEY` | the project's VAPID **private** key — server secret |
 | `VAPID_SUBJECT` | `mailto:param@pharmastrategies.ca` |
 
+The two keys are a **pair** and must be the exact match of each other: a public key is 87
+characters and a private key is 43, so anything else was mistyped, truncated, or pasted
+with a line break inside it. `VAPID_PUBLIC_KEY` here must be the same key as the built-in
+one in `lib/push.ts` — if they differ, subscriptions are created against one key while
+sends are signed with the other, and every push is refused. Both sides now strip stray
+whitespace and report `bad_vapid_keys` rather than failing silently.
+
+**Rotating the keys** invalidates every existing device: a subscription is bound to the key
+that created it. The portal notices the stale subscription and re-subscribes, so each user
+only has to press **Enable notifications** once more.
+
 ### 6c. Deploy `send-push`
 
 `supabase/functions/send-push/index.ts` (Deno + `web-push`). Either paste it into
@@ -189,6 +200,12 @@ What it does: resolves the thread's home, picks recipients **excluding the sende
    `status_code = 200` with `{"ok":true,"sent":1}` means the push went out. A `403` means
    the Vault `push_service_role_key` is wrong; no row at all means `push_function_url` is
    missing.
+
+   The function also returns `failed` and `lastStatus`, which separate "nobody is
+   subscribed" from "the send was refused": `{"ok":true,"sent":0,"failed":1,"lastStatus":403}`
+   means the device subscribed against a different VAPID key — re-enable notifications on
+   it. A `{"ok":false,"reason":"bad_vapid_keys"}` means the Edge Function secrets hold a
+   key that is the wrong length or is not a matching pair.
 
 On **iPhone**, notifications only work from an installed app: **Share → Add to Home
 Screen**, then open the portal from the Home Screen. The account screen and chat banner

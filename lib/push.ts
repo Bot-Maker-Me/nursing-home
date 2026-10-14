@@ -10,7 +10,7 @@
  */
 
 const DEFAULT_VAPID_PUBLIC_KEY =
-  'BDaCCchx_dz_t_BhGHyYhUxBJn3HRlgzNp8A1odmLS65lq_MdPP0dGfqVZ_lgwzDGIayOgmUIvxz-de04OFk2VNU'
+  'BOCamHK0L-hq1NxkuWvWmEVnjjZh4dIC-f3DOR8zFN-6QK6ApWEqHk-LxgWpgTgNu5Ar2meQeSZLfo_QaXDFyaE'
 
 /**
  * A VAPID public key is 65 bytes, i.e. 87–88 URL-safe base64 characters. Anything else
@@ -129,4 +129,20 @@ export function urlBase64ToUint8Array(base64: string): Uint8Array {
   const bytes = new Uint8Array(raw.length)
   for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index)
   return bytes
+}
+
+/**
+ * True when an existing subscription was created with the VAPID key in use now.
+ *
+ * A subscription is bound to the key that created it, so after the keys are rotated the
+ * old one still reports as subscribed while the push service rejects every send to it —
+ * the device silently stops receiving notifications until it subscribes again.
+ */
+export function subscriptionUsesCurrentKey(subscription: PushSubscription): boolean {
+  const used = subscription.options?.applicationServerKey
+  if (!used) return false
+  const expected = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+  const actual = new Uint8Array(used)
+  if (actual.length !== expected.length) return false
+  return actual.every((byte, index) => byte === expected[index])
 }

@@ -30,8 +30,10 @@ const webpush = (webpushImport as { default?: typeof webpushImport }).default ??
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const VAPID_SUBJECT = (Deno.env.get('VAPID_SUBJECT') ?? 'mailto:param@pharmastrategies.ca').trim()
-const VAPID_PUBLIC_KEY = (Deno.env.get('VAPID_PUBLIC_KEY') ?? '').trim()
-const VAPID_PRIVATE_KEY = (Deno.env.get('VAPID_PRIVATE_KEY') ?? '').trim()
+// `.replace(/\s+/g, '')` rather than `.trim()`: a key pasted from a wrapped terminal line
+// carries a newline inside it, which trim() would leave behind and web-push would reject.
+const VAPID_PUBLIC_KEY = (Deno.env.get('VAPID_PUBLIC_KEY') ?? '').replace(/\s+/g, '')
+const VAPID_PRIVATE_KEY = (Deno.env.get('VAPID_PRIVATE_KEY') ?? '').replace(/\s+/g, '')
 
 /** Generic, non-clinical copy. Anything derived from the message body stays here. */
 const TITLE = 'New message'

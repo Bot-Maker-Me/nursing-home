@@ -8,6 +8,7 @@ import {
   isIosBrowser,
   isStandaloneDisplay,
   registerServiceWorker,
+  subscriptionUsesCurrentKey,
   supportsPush,
   urlBase64ToUint8Array,
   waitForActiveWorker,
@@ -93,7 +94,9 @@ export function usePushNotifications(): PushApi {
       return
     }
     const subscription = await registration.pushManager.getSubscription().catch(() => null)
-    setStatus(subscription ? 'on' : 'off')
+    // A subscription made with a previous key reports as enabled but can never receive a
+    // push, so it counts as "off" and the button offers to set the device up again.
+    setStatus(subscription && subscriptionUsesCurrentKey(subscription) ? 'on' : 'off')
   }, [])
 
   useEffect(() => {
@@ -135,6 +138,14 @@ export function usePushNotifications(): PushApi {
       if (!registration) {
         setError('The notification service did not start in time. Reload the page and try again.')
         return
+      }
+
+      // Drop a subscription left over from an earlier key before subscribing afresh —
+      // the push service refuses sends signed with a key the subscription was not made
+      // with, so keeping it would leave this device silently unnotified.
+      const stale = await registration.pushManager.getSubscription().catch(() => null)
+      if (stale && !subscriptionUsesCurrentKey(stale)) {
+        await stale.unsubscribe().catch(() => undefined)
       }
 
       const subscription =
