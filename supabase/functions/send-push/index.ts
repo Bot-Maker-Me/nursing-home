@@ -51,8 +51,13 @@ const TEST_BODY = 'Test alert from your pharmacy portal'
 /** `/chat` is the shared chat path; each origin's service worker maps it to its own route. */
 const CLICK_URL = '/chat'
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const json = (body: unknown, status = 200) => {
+  // Step 4: one line per invocation, so the Edge Function logs always answer the first
+  // question — "was this function even called?" The body never contains the VAPID private
+  // key (it is only ever read from the environment and passed to web-push).
+  console.log('send-push:', status, JSON.stringify(body))
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+}
 
 type SubscriptionRow = {
   id: string

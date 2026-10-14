@@ -47,6 +47,9 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
+  // Step 6: if this line never appears, the push never reached the browser — the fault is
+  // upstream (the database trigger or the Edge Function).
+  console.info('[sw] step 6: push received')
   // Always show something: iOS penalises pushes that display no notification, and the
   // defaults below are the approved generic strings, so nothing private can leak.
   let payload = {}
@@ -61,14 +64,16 @@ self.addEventListener('push', (event) => {
   const body = safeText(payload?.body, SAFE_BODY, BODY_PATTERN)
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: ICON,
-      badge: BADGE,
-      tag: 'portal-chat',
-      renotify: true,
-      data: { url: targetPath(payload?.data) },
-    }),
+    self.registration
+      .showNotification(title, {
+        body,
+        icon: ICON,
+        badge: BADGE,
+        tag: 'portal-chat',
+        renotify: true,
+        data: { url: targetPath(payload?.data) },
+      })
+      .then(() => console.info('[sw] step 6: notification displayed —', title)),
   )
 })
 

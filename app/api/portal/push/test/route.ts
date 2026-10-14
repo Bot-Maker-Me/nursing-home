@@ -3,8 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { SUPABASE_URL } from '@/lib/supabase/env'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
-/** Mirrors lib/supabase/admin.ts — the key stays on the server, never in the browser. */
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2 ?? ''
+/**
+ * Mirrors lib/supabase/admin.ts — the key stays on the server, never in the browser.
+ * Whitespace is stripped because a JWT never contains any, and an env var pasted from a
+ * wrapped line would otherwise produce an invalid `authorization` header and a request
+ * that fails before it reaches Supabase — the same failure the Vault secret can hit.
+ */
+const SERVICE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2 ?? '').replace(/\s+/g, '')
 const SEND_PUSH_URL = `${SUPABASE_URL}/functions/v1/send-push`
 
 type FunctionResult = {

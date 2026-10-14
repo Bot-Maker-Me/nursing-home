@@ -148,6 +148,11 @@ export function usePushNotifications(): PushApi {
         await stale.unsubscribe().catch(() => undefined)
       }
 
+      // Step 3: this key must be byte-for-byte the same as the Edge Function's
+      // VAPID_PUBLIC_KEY secret, otherwise the subscription is created against one key
+      // while every send is signed with the other, and the push service answers 403.
+      console.info('[push] step 3: subscribing with VAPID public key of length', VAPID_PUBLIC_KEY.length)
+
       const subscription =
         (await registration.pushManager.getSubscription()) ??
         (await registration.pushManager.subscribe({
@@ -169,6 +174,14 @@ export function usePushNotifications(): PushApi {
           userAgent: navigator.userAgent,
         }),
       })
+      // Step 2: a 200 here is the proof that a row landed in push_subscriptions.
+      console.info(
+        '[push] step 2: POST /api/portal/push →',
+        response.status,
+        `(endpoint ${serialized.endpoint ? 'present' : 'MISSING'}, p256dh ${
+          serialized.keys?.p256dh ? 'present' : 'MISSING'
+        }, auth ${serialized.keys?.auth ? 'present' : 'MISSING'})`,
+      )
       if (!response.ok) {
         // The portal explains itself here (e.g. "…until the push migration is applied"),
         // which is far more useful than a generic failure.

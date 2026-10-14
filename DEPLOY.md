@@ -73,7 +73,7 @@ vercel --prod       # deploy to production
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://ayvpdpthxwplbsmhpbva.supabase.co` | public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key | public |
 | `SUPABASE_SERVICE_ROLE_KEY` | your service-role key | **Sensitive** |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the project's VAPID public key | public, optional — `lib/push.ts` already carries it |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the project's VAPID public key | public, optional — `lib/push.ts` already carries it. If you *do* set it, it must be the **same** key as the Edge Function's `VAPID_PUBLIC_KEY`; a different value here makes every device subscribe against one key while sends are signed with the other. Leave it unset to use the built-in one |
 | `RESEND_API_KEY` | *(optional)* | enables server-side email |
 | `PHARMACY_EMAIL` | *(optional)* | defaults to pharmacy@hendersonsportal.ca |
 | `MAIL_FROM` | *(optional)* | Resend "from" address |
@@ -204,6 +204,37 @@ What it does: resolves the thread's home, picks recipients **excluding the sende
    `status_code = 200` with `{"ok":true,"sent":1}` means the push went out. A `403` means
    the Vault `push_service_role_key` is wrong; no row at all means `push_function_url` is
    missing.
+
+   **`status_code` NULL with `error_msg = 'A libcurl function was given a bad argument'` is
+   the silent one:** the request never left Postgres, so the Edge Function was never called
+   and its logs stay empty — which is why "nothing arrives anywhere, desktop or mobile, tab
+   open or closed" while the in-app bell still works. It means one of the two Vault secrets
+   holds a value with whitespace inside it: usually the service-role key copied from a
+   wrapped line, or the VAPID public key pasted into the wrong secret (a VAPID key is 87 or
+   43 characters — a service-role key is a `eyJ…` JWT of roughly 200+). Confirm the shape —
+   this reveals no secret content:
+
+   ```sql
+   select name,
+          length(decrypted_secret) as chars,
+          (decrypted_secret ~ '\s') as has_whitespace,
+          (decrypted_secret ~ '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$') as looks_like_service_key
+   from vault.decrypted_secrets
+   where name in ('push_function_url', 'push_service_role_key');
+   ```
+
+   `looks_like_service_key` must be `true` and `has_whitespace` `false`. To repair, copy the
+   real key from **Project Settings → API → `service_role`** and run:
+
+   ```sql
+   select vault.update_secret(
+     (select id from vault.decrypted_secrets where name = 'push_service_role_key'),
+     '<PASTE_THE_eyJ_SERVICE_ROLE_KEY>');
+   ```
+
+   The trigger itself now strips whitespace from both values and validates their shape, so a
+   wrapped paste no longer breaks the call — and a wrong value raises a warning (the
+   Postgres equivalent of a console log) instead of idling silently.
 
    The function also returns `failed` and `lastStatus`, which separate "nobody is
    subscribed" from "the send was refused": `{"ok":true,"sent":0,"failed":1,"lastStatus":403}`

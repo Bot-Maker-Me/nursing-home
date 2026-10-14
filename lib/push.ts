@@ -98,9 +98,25 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   if (!supportsPush()) return null
   try {
     const existing = await navigator.serviceWorker.getRegistration()
-    if (existing) return existing
-    return await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })
-  } catch {
+    if (existing) {
+      console.info('[push] step 1: service worker already registered at', existing.scope)
+      return existing
+    }
+    const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })
+    console.info(
+      '[push] step 1: service worker registered at',
+      registration.scope,
+      registration.active ? '(active)' : '(installing)',
+    )
+    return registration
+  } catch (caught) {
+    // A registration that never happens hides every later step, so the reason is kept
+    // visible here instead of being swallowed — the caller only sees `null`.
+    console.warn(
+      '[push] step 1: service worker registration failed:',
+      (caught as { name?: string })?.name ?? 'unknown',
+      caught instanceof Error ? caught.message : caught,
+    )
     return null
   }
 }

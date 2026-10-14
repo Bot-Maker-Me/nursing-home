@@ -71,6 +71,28 @@ begin
     return new;
   end if;
 
+  -- Whitespace is never part of a URL or a JWT, so stripping it undoes a secret pasted from
+  -- a wrapped terminal line. Left in, a newline inside the Authorization header makes
+  -- libcurl refuse the whole request before it is sent ("A libcurl function was given a bad
+  -- argument"): the response row lands with a NULL status_code, the Edge Function is never
+  -- called, its logs stay empty, and no notification ever arrives anywhere.
+  function_url := regexp_replace(function_url, '\s', '', 'g');
+  service_key := regexp_replace(service_key, '\s', '', 'g');
+
+  -- Diagnose rather than idle silently. `raise warning` is the database's equivalent of a
+  -- console log: a bad value here is the most common reason no push is ever delivered, and
+  -- it is otherwise completely invisible from the app.
+  if function_url !~ '^https?://' then
+    raise warning 'push: Vault secret push_function_url is not an http(s) URL, so the send-push trigger is idle. Fix it with vault.update_secret().';
+    return new;
+  end if;
+  -- A service-role key is a JWT: three base64url segments separated by dots. A VAPID key
+  -- (87 or 43 characters) pasted into this secret looks like a credential but is not one.
+  if service_key !~ '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' then
+    raise warning 'push: Vault secret push_service_role_key is not a service-role JWT, so the send-push trigger is idle. Set it to the project''s service_role key.';
+    return new;
+  end if;
+
   -- Thread-less rows have no scope to notify.
   if new.thread_id is null then
     return new;
