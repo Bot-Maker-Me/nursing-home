@@ -46,9 +46,46 @@ export async function POST(request: Request) {
     { onConflict: 'endpoint' },
   )
   if (error) {
+    // A save that fails silently is indistinguishable from one that never ran, so the
+    // reason is logged here (the endpoint is not sensitive, the keys are never logged).
+    console.error('[push] saving the subscription failed:', error.code ?? 'unknown', error.message)
     return NextResponse.json({ error: 'Notifications are not available until the push migration is applied.' }, { status: 503 })
   }
+  console.info('[push] subscription saved for', user.id, '→ tenant', profile?.home_id ?? 'none')
   return NextResponse.json({ ok: true })
+}
+
+/**
+ * Reports whether this device's endpoint is already stored for the signed-in user.
+ *
+ * Subscribed in the browser and saved in the database are different facts, so the Account
+ * page's diagnostic asks the server instead of guessing. The endpoint is the caller's own
+ * and RLS confines the read to their rows.
+ */
+export async function GET(request: Request) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const endpoint = new URL(request.url).searchParams.get('endpoint')?.trim() ?? ''
+  if (!endpoint) return NextResponse.json({ error: 'A subscription endpoint is required.' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('endpoint', endpoint)
+    .maybeSingle()
+  if (error) {
+    console.error('[push] reading the subscription failed:', error.code ?? 'unknown', error.message)
+    return NextResponse.json(
+      { error: 'Notification settings are not available until the push migration is applied.' },
+      { status: 503 },
+    )
+  }
+  return NextResponse.json({ saved: Boolean(data) })
 }
 
 /** Removes this device's subscription when notifications are turned off. */

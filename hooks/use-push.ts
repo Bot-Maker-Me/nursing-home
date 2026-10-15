@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   EMBED_HINT,
+  VAPID_KEY_STATE,
   VAPID_PUBLIC_KEY,
   isEmbedded,
   isIosBrowser,
@@ -11,11 +12,15 @@ import {
   subscriptionUsesCurrentKey,
   supportsPush,
   urlBase64ToUint8Array,
+  vapidKeyMessage,
   waitForActiveWorker,
+  type VapidKeyState,
 } from '@/lib/push'
 
 export type PushStatus =
   | 'loading'
+  | 'not-configured'
+  | 'misconfigured'
   | 'unsupported'
   | 'ios-install'
   | 'embedded'
@@ -23,13 +28,41 @@ export type PushStatus =
   | 'blocked'
   | 'on'
 
+export type PushPermission = 'default' | 'granted' | 'denied' | 'unavailable'
+
+/** What an administrator needs to see to tell a working setup from a broken one. */
+export type PushDiagnostics = {
+  keyState: VapidKeyState
+  keyConfigured: boolean
+  serviceWorkerRegistered: boolean
+  permission: PushPermission
+  /** `null` means nothing is subscribed on this device, or the check could not run. */
+  subscriptionSaved: boolean | null
+}
+
 type PushApi = {
   status: PushStatus
   busy: boolean
   error: string | null
+  diagnostics: PushDiagnostics
   enable: () => Promise<void>
   disable: () => Promise<void>
 }
+
+/**
+ * Deterministic first render (permission is read after mount) so the server and client
+ * markup agree — the diagnostic line never causes a hydration mismatch.
+ */
+const INITIAL_DIAGNOSTICS: PushDiagnostics = {
+  keyState: VAPID_KEY_STATE,
+  keyConfigured: VAPID_KEY_STATE === 'configured',
+  serviceWorkerRegistered: false,
+  permission: 'default',
+  subscriptionSaved: null,
+}
+
+const VAPID_KEY_INVALID_FALLBACK =
+  'This portal’s notification key could not be used, so no device can subscribe. Ask the pharmacy to check the NEXT_PUBLIC_VAPID_PUBLIC_KEY setting.'
 
 /** Turns a thrown browser error into something a nurse can act on. */
 function describePushError(error: unknown): string {
@@ -49,25 +82,79 @@ function describePushError(error: unknown): string {
       return 'Notifications cannot be enabled in this context — open the portal in its own tab.'
     case 'InvalidCharacterError':
     case 'DataError':
-      return 'This portal’s notification key is not valid, so no device can subscribe. Ask the pharmacy to check the push configuration.'
+      return VAPID_KEY_INVALID_FALLBACK
     default:
       // Naming the browser's own error keeps this diagnosable instead of a dead end.
       return `Notifications could not be enabled on this device (${name || 'no error name'}).`
   }
 }
 
+/** The status that matches the configured key, before any browser capability is probed. */
+function keyStatus(): PushStatus | null {
+  if (VAPID_KEY_STATE === 'missing') return 'not-configured'
+  if (VAPID_KEY_STATE === 'invalid') return 'misconfigured'
+  return null
+}
+
 /**
- * The portal's push-notification state machine: not supported / blocked / enabled (with a
- * Disable option), plus iOS Safari's "install it first" and the embedded-page case.
- * Subscriptions are stored in public.push_subscriptions (one row per device,
- * endpoint-unique) through the portal API, and removed again when the user disables them.
+ * The portal's push-notification state machine: not configured (missing or invalid public
+ * key) / not supported / blocked / enabled (with a Disable option), plus iOS Safari's
+ * "install it first" and the embedded-page case. Subscriptions are stored in
+ * public.push_subscriptions (one row per device, endpoint-unique) through the portal API,
+ * and removed again when the user disables them.
  */
 export function usePushNotifications(): PushApi {
   const [status, setStatus] = useState<PushStatus>('loading')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [diagnostics, setDiagnostics] = useState<PushDiagnostics>(INITIAL_DIAGNOSTICS)
+
+  /** Reads the live browser facts behind the admin diagnostic line. Never reads the key. */
+  const refreshDiagnostics = useCallback(async () => {
+    const permission: PushPermission =
+      typeof Notification === 'undefined' ? 'unavailable' : Notification.permission
+
+    let serviceWorkerRegistered = false
+    let subscription: PushSubscription | null = null
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration()
+        serviceWorkerRegistered = Boolean(registration)
+        subscription = (await registration?.pushManager.getSubscription()) ?? null
+      } catch {
+        serviceWorkerRegistered = false
+      }
+    }
+
+    // "Subscribed in this browser" and "the row is in push_subscriptions" are different
+    // facts — the server is the only one that knows whether the save actually landed.
+    let subscriptionSaved: boolean | null = null
+    if (subscription?.endpoint) {
+      const response = await fetch(`/api/portal/push?endpoint=${encodeURIComponent(subscription.endpoint)}`).catch(
+        () => null,
+      )
+      const data = response?.ok ? ((await response.json().catch(() => null)) as { saved?: unknown } | null) : null
+      if (typeof data?.saved === 'boolean') subscriptionSaved = data.saved
+    }
+
+    setDiagnostics({
+      keyState: VAPID_KEY_STATE,
+      keyConfigured: VAPID_KEY_STATE === 'configured',
+      serviceWorkerRegistered,
+      permission,
+      subscriptionSaved,
+    })
+  }, [])
 
   const detect = useCallback(async () => {
+    const blockedByKey = keyStatus()
+    if (blockedByKey) {
+      // Without a usable key no device can subscribe at all, so the key problem is reported
+      // first and its own message (missing vs invalid) is rendered by the caller.
+      setStatus(blockedByKey)
+      setError(null)
+      return
+    }
     if (!supportsPush()) {
       // iOS Safari only exposes the Push API to an app opened from the Home Screen, so an
       // iPhone in a plain tab is told how to install the portal rather than "unsupported".
@@ -101,12 +188,21 @@ export function usePushNotifications(): PushApi {
 
   useEffect(() => {
     void detect()
-  }, [detect])
+    void refreshDiagnostics()
+  }, [detect, refreshDiagnostics])
 
   const enable = useCallback(async () => {
     setBusy(true)
     setError(null)
     try {
+      const blockedByKey = keyStatus()
+      if (blockedByKey) {
+        // Refuse before asking for permission: a subscription is impossible anyway, and the
+        // permission prompt would still be spent.
+        setStatus(blockedByKey)
+        setError(vapidKeyMessage())
+        return
+      }
       if (typeof Notification.requestPermission !== 'function') {
         setStatus('unsupported')
         return
@@ -174,27 +270,29 @@ export function usePushNotifications(): PushApi {
           userAgent: navigator.userAgent,
         }),
       })
+      if (!response.ok) {
+        // The portal explains itself here (e.g. "…until the push migration is applied"),
+        // which is far more useful than a generic failure. The save failing is logged too,
+        // so a row that never landed is never a silent dead end.
+        const data = (await response.json().catch(() => null)) as { error?: unknown } | null
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : 'This device could not be registered for notifications. Please try again.'
+        console.error('[push] step 2: saving the subscription failed →', response.status, message)
+        await subscription.unsubscribe()
+        setStatus('off')
+        setError(message)
+        return
+      }
       // Step 2: a 200 here is the proof that a row landed in push_subscriptions.
       console.info(
-        '[push] step 2: POST /api/portal/push →',
+        '[push] step 2: subscription saved (POST /api/portal/push →',
         response.status,
-        `(endpoint ${serialized.endpoint ? 'present' : 'MISSING'}, p256dh ${
+        `, endpoint ${serialized.endpoint ? 'present' : 'MISSING'}, p256dh ${
           serialized.keys?.p256dh ? 'present' : 'MISSING'
         }, auth ${serialized.keys?.auth ? 'present' : 'MISSING'})`,
       )
-      if (!response.ok) {
-        // The portal explains itself here (e.g. "…until the push migration is applied"),
-        // which is far more useful than a generic failure.
-        const data = (await response.json().catch(() => null)) as { error?: unknown } | null
-        await subscription.unsubscribe()
-        setStatus('off')
-        setError(
-          typeof data?.error === 'string'
-            ? data.error
-            : 'This device could not be registered for notifications. Please try again.',
-        )
-        return
-      }
       setStatus('on')
     } catch (caught) {
       // Keep the reason visible in the console; the user gets the readable version.
@@ -206,8 +304,9 @@ export function usePushNotifications(): PushApi {
       setError(describePushError(caught))
     } finally {
       setBusy(false)
+      void refreshDiagnostics()
     }
-  }, [])
+  }, [refreshDiagnostics])
 
   const disable = useCallback(async () => {
     setBusy(true)
@@ -229,8 +328,9 @@ export function usePushNotifications(): PushApi {
       setError('Notifications could not be turned off on this device.')
     } finally {
       setBusy(false)
+      void refreshDiagnostics()
     }
-  }, [])
+  }, [refreshDiagnostics])
 
-  return { status, busy, error, enable, disable }
+  return { status, busy, error, diagnostics, enable, disable }
 }

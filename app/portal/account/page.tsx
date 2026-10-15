@@ -10,6 +10,8 @@ export default async function AccountPage() {
   const homeName = await getTenantName()
   const assignedPharmacist = user?.user_metadata?.assigned_pharmacist || 'Not assigned'
   const role = profile?.role || 'Authorized partner'
+  // Same rule the admin route handlers use: the profile role wins, then the auth metadata.
+  const isAdmin = String(profile?.role ?? user?.app_metadata?.role ?? '').toLowerCase() === 'admin'
 
   return (
     <>
@@ -31,7 +33,7 @@ export default async function AccountPage() {
         <p className="mt-4 text-xs text-muted-foreground">Use the sign-out control in the sidebar to end your session on this device.</p>
       </Card>
       <Card className="mt-8" eyebrow="Notifications" title="Message alerts">
-        <PushNotificationSettings />
+        <PushNotificationSettings isAdmin={isAdmin} />
       </Card>
     </>
   )

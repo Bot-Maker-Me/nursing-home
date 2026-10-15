@@ -1,42 +1,84 @@
 /**
  * Web Push client helpers.
  *
- * The VAPID PUBLIC key is public by design — the browser sends it to the push service
- * with every subscribe request, so it is safe to ship in the JavaScript bundle (exactly
- * like the Supabase anon key in lib/supabase/env.ts).
+ * The VAPID PUBLIC key is public by design — the browser sends it to the push service with
+ * every subscribe request, so it is safe to ship in the JavaScript bundle (exactly like the
+ * Supabase anon key in lib/supabase/env.ts).
  *
- * The matching VAPID PRIVATE key must NEVER appear here, in any NEXT_PUBLIC_* variable,
- * or in any client bundle. It lives only in the `send-push` Edge Function secrets.
+ * The matching VAPID PRIVATE key must NEVER appear here, in any NEXT_PUBLIC_* variable, or
+ * in any client bundle. It lives only in the `send-push` Edge Function secrets.
  */
-
-const DEFAULT_VAPID_PUBLIC_KEY =
-  'BOCamHK0L-hq1NxkuWvWmEVnjjZh4dIC-f3DOR8zFN-6QK6ApWEqHk-LxgWpgTgNu5Ar2meQeSZLfo_QaXDFyaE'
 
 /**
- * A VAPID public key is 65 bytes, i.e. 87–88 URL-safe base64 characters. Anything else
- * means the value was mistyped, truncated, or pasted with a line break inside it — and a
- * wrapped terminal paste is the usual culprit. `window.atob()` then throws
- * InvalidCharacterError and the Enable button fails with a message that hides the cause,
- * so an unusable override falls back to the known-good key shipped here instead.
+ * THE one place this app reads its public key.
+ *
+ * Next.js inlines `process.env.NEXT_PUBLIC_*` at build time, but only when it can see the
+ * literal member expression. A dynamic lookup such as `process.env[name]` is left untouched
+ * and reads `undefined` in the browser — which is exactly how a deployment that has the
+ * variable set still claims notifications are not configured. So the name is written out in
+ * full, here and nowhere else, and no key is ever hardcoded as a fallback.
  */
-function sanitizeVapidPublicKey(value: string | undefined): string | null {
-  if (!value) return null
-  // Whitespace is never part of a key, so dropping it undoes a wrapped paste.
-  const cleaned = value.replace(/\s+/g, '')
-  if (!/^[A-Za-z0-9_-]+$/.test(cleaned)) return null
-  if (cleaned.length < 87 || cleaned.length > 88) return null
-  return cleaned
+const RAW_VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+
+/**
+ * A VAPID public key is 65 bytes: 87–88 URL-safe base64 characters, always starting with
+ * 'B'. Anything else was mistyped, truncated, or pasted from a wrapped line — and a wrapped
+ * terminal paste is the usual culprit — which makes `window.atob()` throw
+ * InvalidCharacterError halfway through subscribing, with a message that hides the cause.
+ */
+const VAPID_KEY_MIN_LENGTH = 87
+const VAPID_KEY_MAX_LENGTH = 88
+
+/** Whitespace and line breaks are never part of a key, so dropping them undoes a bad paste. */
+function trimVapidPublicKey(value: string | undefined): string {
+  return (value ?? '').replace(/\s+/g, '')
 }
 
-const configuredVapidPublicKey = sanitizeVapidPublicKey(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
-if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && !configuredVapidPublicKey) {
-  // Never log the value itself — only the fact that it was rejected.
-  console.warn(
-    '[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not a valid VAPID public key; using the built-in key.',
+function looksLikeVapidPublicKey(value: string): boolean {
+  return (
+    value.length >= VAPID_KEY_MIN_LENGTH &&
+    value.length <= VAPID_KEY_MAX_LENGTH &&
+    value.startsWith('B') &&
+    /^[A-Za-z0-9_-]+$/.test(value)
   )
 }
 
-export const VAPID_PUBLIC_KEY = configuredVapidPublicKey ?? DEFAULT_VAPID_PUBLIC_KEY
+/** `missing` = nothing set · `invalid` = set but unusable · `configured` = usable. */
+export type VapidKeyState = 'configured' | 'missing' | 'invalid'
+
+const cleanedVapidPublicKey = trimVapidPublicKey(RAW_VAPID_PUBLIC_KEY)
+
+export const VAPID_KEY_STATE: VapidKeyState = !cleanedVapidPublicKey
+  ? 'missing'
+  : looksLikeVapidPublicKey(cleanedVapidPublicKey)
+    ? 'configured'
+    : 'invalid'
+
+/** The cleaned public key, or '' when it is missing or invalid. Never logged or displayed. */
+export const VAPID_PUBLIC_KEY = VAPID_KEY_STATE === 'configured' ? cleanedVapidPublicKey : ''
+
+if (VAPID_KEY_STATE !== 'configured') {
+  // One line, once per server start / page load, so a misconfigured deployment is visible
+  // in the logs without ever printing the value.
+  console.warn(
+    VAPID_KEY_STATE === 'missing'
+      ? '[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set on this deployment; browser alerts stay disabled.'
+      : '[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is set but is not a valid VAPID public key; browser alerts stay disabled.',
+  )
+}
+
+export const VAPID_KEY_MISSING_MESSAGE =
+  'Notifications are not configured on this deployment yet. An administrator needs to set the NEXT_PUBLIC_VAPID_PUBLIC_KEY environment variable.'
+
+export const VAPID_KEY_INVALID_MESSAGE =
+  'Notifications are misconfigured on this deployment: NEXT_PUBLIC_VAPID_PUBLIC_KEY is set, but it is not a valid VAPID public key. It must start with "B", be 87–88 URL-safe base64 characters long, and contain no spaces or line breaks.'
+
+/** The message that fits the key state, so the UI can say which of the two problems it is. */
+export function vapidKeyMessage(state: VapidKeyState = VAPID_KEY_STATE): string | null {
+  if (state === 'missing') return VAPID_KEY_MISSING_MESSAGE
+  if (state === 'invalid') return VAPID_KEY_INVALID_MESSAGE
+  return null
+}
 
 export const SERVICE_WORKER_URL = '/sw.js'
 
@@ -91,8 +133,9 @@ export function isEmbedded(): boolean {
 }
 
 /**
- * Registers (or finds) the push service worker. Safe to call on every app load: the
- * browser returns the existing registration instead of installing a second one.
+ * Registers (or finds) the push service worker served from `public/sw.js` at `/sw.js`.
+ * Safe to call on every app load: the browser returns the existing registration instead of
+ * installing a second one.
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!supportsPush()) return null
@@ -152,9 +195,11 @@ export function urlBase64ToUint8Array(base64: string): Uint8Array {
  *
  * A subscription is bound to the key that created it, so after the keys are rotated the
  * old one still reports as subscribed while the push service rejects every send to it —
- * the device silently stops receiving notifications until it subscribes again.
+ * the device silently stops receiving notifications until it subscribes again. With no
+ * usable key configured there is nothing to compare against, so this is false.
  */
 export function subscriptionUsesCurrentKey(subscription: PushSubscription): boolean {
+  if (VAPID_KEY_STATE !== 'configured') return false
   const used = subscription.options?.applicationServerKey
   if (!used) return false
   const expected = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)

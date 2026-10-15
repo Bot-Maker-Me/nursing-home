@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Bell, BellOff, Loader2, Send } from 'lucide-react'
 import { usePushNotifications } from '@/hooks/use-push'
-import { EMBED_HINT, IOS_PUSH_HINT } from '@/lib/push'
+import { EMBED_HINT, IOS_PUSH_HINT, VAPID_KEY_STATE, vapidKeyMessage } from '@/lib/push'
 
 type PushStatus = ReturnType<typeof usePushNotifications>['status']
 
@@ -14,6 +14,8 @@ const CHIP: Record<PushStatus, { className: string; label: string }> = {
   unsupported: { className: 'chip-neutral', label: 'Not supported in this browser' },
   'ios-install': { className: 'chip-warn', label: 'Install the portal first' },
   embedded: { className: 'chip-warn', label: 'Open in its own tab' },
+  'not-configured': { className: 'chip-warn', label: 'Not configured on this deployment' },
+  misconfigured: { className: 'chip-warn', label: 'Notification key is not valid' },
   loading: { className: 'chip-neutral', label: 'Checking…' },
 }
 
@@ -22,12 +24,16 @@ const CHIP: Record<PushStatus, { className: string; label: string }> = {
  * be in: unsupported, blocked, enabled (with a Disable option), iOS Safari before the
  * portal is installed to the Home Screen, and a page that is embedded in another one.
  *
+ * When this deployment has no usable VAPID public key there is nothing a user can do, so
+ * the control says whether the key is missing or invalid instead of offering a button that
+ * cannot work. Administrators additionally get a one-line diagnostic of the whole chain.
+ *
  * Once a device is enabled it also offers a test alert: a real push only happens when the
  * pharmacy replies, so without this there is no way to tell a working device from a broken
  * one until it matters.
  */
-export function PushNotificationSettings() {
-  const { status, busy, error, enable, disable } = usePushNotifications()
+export function PushNotificationSettings({ isAdmin = false }: { isAdmin?: boolean }) {
+  const { status, busy, error, diagnostics, enable, disable } = usePushNotifications()
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
@@ -55,6 +61,8 @@ export function PushNotificationSettings() {
       setTesting(false)
     }
   }
+
+  const configurationMessage = vapidKeyMessage(VAPID_KEY_STATE)
 
   return (
     <div className="space-y-4">
@@ -110,6 +118,8 @@ export function PushNotificationSettings() {
         </p>
       )}
 
+      {configurationMessage && <p role="alert" className="text-sm text-muted-foreground">{configurationMessage}</p>}
+
       {status === 'ios-install' && <p className="text-sm text-forest">{IOS_PUSH_HINT}</p>}
 
       {status === 'embedded' && <p className="text-sm text-forest">{EMBED_HINT}</p>}
@@ -132,6 +142,15 @@ export function PushNotificationSettings() {
       {error && (
         <p role="alert" className="text-sm text-terracotta">
           {error}
+        </p>
+      )}
+
+      {isAdmin && (
+        <p className="border-t border-hairline pt-3 text-xs text-muted-foreground">
+          <span className="eyebrow mr-2">Push diagnostic</span>
+          Key configured: {diagnostics.keyConfigured ? 'yes' : `no (${diagnostics.keyState})`} &middot; Service worker
+          registered: {diagnostics.serviceWorkerRegistered ? 'yes' : 'no'} &middot; Permission: {diagnostics.permission}{' '}
+          &middot; Subscription saved: {diagnostics.subscriptionSaved === null ? 'unknown' : diagnostics.subscriptionSaved ? 'yes' : 'no'}
         </p>
       )}
     </div>

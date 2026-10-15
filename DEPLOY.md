@@ -73,7 +73,7 @@ vercel --prod       # deploy to production
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://ayvpdpthxwplbsmhpbva.supabase.co` | public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key | public |
 | `SUPABASE_SERVICE_ROLE_KEY` | your service-role key | **Sensitive** |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the project's VAPID public key | public, optional — `lib/push.ts` already carries it. If you *do* set it, it must be the **same** key as the Edge Function's `VAPID_PUBLIC_KEY`; a different value here makes every device subscribe against one key while sends are signed with the other. Leave it unset to use the built-in one |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the project's VAPID public key | public. **Required for browser alerts** — there is no built-in fallback, so leaving it unset makes the Account page report "Notifications are not configured on this deployment yet". It must be the **same** key as the Edge Function's `VAPID_PUBLIC_KEY`; a different value here makes every device subscribe against one key while sends are signed with the other. `NEXT_PUBLIC_*` is inlined at build time, so redeploy after changing it |
 | `RESEND_API_KEY` | *(optional)* | enables server-side email |
 | `PHARMACY_EMAIL` | *(optional)* | defaults to pharmacy@hendersonsportal.ca |
 | `MAIL_FROM` | *(optional)* | Resend "from" address |
@@ -159,10 +159,11 @@ variable. Until both secrets exist the trigger is a silent no-op and chat keeps 
 
 The two keys are a **pair** and must be the exact match of each other: a public key is 87
 characters and a private key is 43, so anything else was mistyped, truncated, or pasted
-with a line break inside it. `VAPID_PUBLIC_KEY` here must be the same key as the built-in
-one in `lib/push.ts` — if they differ, subscriptions are created against one key while
-sends are signed with the other, and every push is refused. Both sides now strip stray
-whitespace and report `bad_vapid_keys` rather than failing silently.
+with a line break inside it. `VAPID_PUBLIC_KEY` here must be the same key as the hosting
+side's `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (the one `lib/push.ts` reads) — if they differ,
+subscriptions are created against one key while sends are signed with the other, and every
+push is refused. Both sides now strip stray whitespace and report `bad_vapid_keys` rather
+than failing silently.
 
 **Rotating the keys** invalidates every existing device: a subscription is bound to the key
 that created it. The portal notices the stale subscription and re-subscribes, so each user
