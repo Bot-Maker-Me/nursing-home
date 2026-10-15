@@ -1,4 +1,5 @@
 import { ThreadConsole } from '@/components/admin/thread-console'
+import { PushNotificationSettings } from '@/components/portal/push-notifications'
 import { createClient } from '@/lib/supabase/server'
 
 export const metadata = {
@@ -22,6 +23,15 @@ export default async function PharmacyConversationsPage() {
           Secure, real-time chat with the care homes. Pick a nursing home to focus the conversation list, reply, or start a new conversation — messages appear instantly for the home team.
         </p>
       </header>
+      {/* Pharmacy staff are redirected away from /portal/account, which used to be the only
+          place a device could opt in — so no pharmacy device was ever subscribed and every
+          care-home message alerted nobody. This is that control, here on the console. */}
+      <section className="mt-6 border border-hairline p-5">
+        <h2 className="text-sm font-semibold">Message alerts</h2>
+        <div className="mt-3">
+          <PushNotificationSettings />
+        </div>
+      </section>
       <div className="mt-8">
         <ThreadConsole endpoint="/api/pharmacy/threads" allowNew homeFilter />
       </div>
