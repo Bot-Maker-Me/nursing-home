@@ -4,23 +4,30 @@
  * The one and only sending half of portal chat push notifications, shared by this
  * portal and the Pharma Portal (both write to public.portal_messages in the same
  * database). It is invoked by the `portal_messages_send_push` database trigger
- * (pg_net, fire-and-forget) — see supabase/migrations/20261016000000_push_subscriptions.sql.
+ * (pg_net, fire-and-forget) — see supabase/migrations/20261016000000_push_subscriptions.sql —
+ * and by a Database Webhook on public.portal_messages INSERT, if one is configured.
+ *
+ * BOTH DIRECTIONS are handled here. The recipient side is the side that did NOT send:
+ *   • sender_role = 'pharmacy' → the home's users (profiles.home_id = thread.home_id);
+ *   • sender_role = 'home'     → the pharmacy side of that conversation.
  *
  * Requires these Edge Function secrets (Dashboard → Edge Functions → Manage secrets):
  *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
- * The private key is a server secret: it is read from the environment only and is never
- * returned, logged, echoed, or bundled into any client.
+ * Optional:
+ *   PUSH_WEBHOOK_SECRET — when set, every trigger/webhook call must carry it in the
+ *   `x-webhook-secret` header, or it is refused with 403. Leave it unset and nothing
+ *   changes. The portal's own "send a test alert" path never sends it and is exempt.
  *
- * Two callers, both authenticated with the service-role key:
- *   • the trigger, with a `portal_messages` record — notifies that thread's other side;
- *   • the portal's own "send a test alert" button, with `{ test: true, user_id }` — sends
- *     one alert to that account's own devices, so a phone or desktop can be proven
- *     end-to-end without waiting for a real reply.
+ * VAPID_PUBLIC_KEY must be byte-for-byte the key the Pharma Portal inlines as
+ * NEXT_PUBLIC_VAPID_PUBLIC_KEY, with VAPID_PRIVATE_KEY as its matching half — a
+ * subscription is bound to the key that created it, so a mismatch means the push service
+ * refuses every send (403) and nothing ever decrypts. Keys live in secrets only; they are
+ * never in this file, never logged, never returned.
  *
  * Privacy: this is a healthcare setting. Only approved generic strings are ever sent —
  * "New message" with a body that starts with "You have a new message", or the test copy.
- * Message bodies, resident names and medication names are never included, and the client
- * service worker discards anything that is not one of the approved strings.
+ * Message bodies, resident names and medication names are never included, and each portal's
+ * service worker discards anything that is not one of its approved strings.
  *
  * The function never throws in a way that can affect the message insert (the trigger is
  * asynchronous), and each push is best-effort: a failure for one device never stops the
@@ -40,16 +47,22 @@ const VAPID_SUBJECT = (Deno.env.get('VAPID_SUBJECT') ?? 'mailto:param@pharmastra
 // carries a newline inside it, which trim() would leave behind and web-push would reject.
 const VAPID_PUBLIC_KEY = (Deno.env.get('VAPID_PUBLIC_KEY') ?? '').replace(/\s+/g, '')
 const VAPID_PRIVATE_KEY = (Deno.env.get('VAPID_PRIVATE_KEY') ?? '').replace(/\s+/g, '')
+/** Optional. When present, trigger/webhook calls must carry this in `x-webhook-secret`. */
+const WEBHOOK_SECRET = (Deno.env.get('PUSH_WEBHOOK_SECRET') ?? '').trim()
 
-/** Generic, non-clinical copy. Anything derived from the message body stays here. */
+/** Generic, non-clinical copy. Anything derived from the message body stays out of here. */
 const TITLE = 'New message'
 const BODY_DEFAULT = 'You have a new message'
 const BODY_FROM_PHARMACY = 'You have a new message from the pharmacy'
+/** Home-sent: the pharmacy console reads this. Still generic — no home, person or medicine. */
+const BODY_FROM_HOME = 'You have a new message from the nursing home'
 /** The only non-message alert: the portal's own "send a test alert" button. */
 const TEST_TITLE = 'Message alerts are on'
 const TEST_BODY = 'Test alert from your pharmacy portal'
 /** `/chat` is the shared chat path; each origin's service worker maps it to its own route. */
 const CLICK_URL = '/chat'
+/** Notification grouping tag, so several alerts collapse into one per device. */
+const TAG = 'pharma-portal-message'
 
 const json = (body: unknown, status = 200) => {
   // Step 4: one line per invocation, so the Edge Function logs always answer the first
@@ -85,30 +98,113 @@ function callerRole(request: Request): string {
   }
 }
 
-/** The accounts that make up the pharmacy side of a conversation (the pharmacy console). */
+/** Accounts that run the pharmacy console when no explicit per-home grant exists. */
 const PHARMACY_ROLES = ['pharmacy', 'admin']
 
+/** One place a recipient id came from, so a "0 recipients" log says which lookup failed. */
+type RecipientSource = { from: string; found: number }
+
+/**
+ * The user ids that should be notified for this message — the side that did NOT send it.
+ *
+ * Home-sent (the direction that used to notify nobody): the pharmacy side is resolved from
+ * up to three sources and the results are unioned, so this works whether or not the database
+ * has an explicit grant table:
+ *   1. `pharmacy_home_access(pharmacy_user_id, home_id)` — the explicit grant, when the table
+ *      exists. Some deployments never created it, so a missing table is not fatal: it is
+ *      logged and the other two sources still apply;
+ *   2. `profiles.role in ('pharmacy','admin')` — the pharmacy console accounts;
+ *   3. `profiles.pharmacy_id = chat_threads.pharmacy_id` — staff of the thread's own pharmacy.
+ *
+ * The author is always excluded: the same account can be signed in on both portals, and
+ * nobody needs an alert for the message they just wrote.
+ */
 async function recipientsFor(
   supabase: ReturnType<typeof createClient>,
-  { senderRole, homeId, senderId }: { senderRole: string; homeId: string; senderId: string },
+  {
+    senderRole,
+    homeId,
+    pharmacyId,
+    senderId,
+    threadId,
+  }: { senderRole: string; homeId: string; pharmacyId: string; senderId: string; threadId: string },
 ): Promise<string[]> {
-  // Both branches are already tenant-scoped by the thread's home.
+  const sources: Array<{ label: string; ids: string[] }> = []
+
   if (senderRole === 'pharmacy') {
     // Pharmacy-sent: everyone at that nursing home.
     const { data, error } = await supabase.from('profiles').select('id').eq('home_id', homeId)
-    if (error) return []
-    return (data ?? []).map((row) => String(row.id))
+    if (error) {
+      console.error('[send-push] home recipient lookup failed:', error.message)
+    } else {
+      sources.push({ label: 'profiles.home_id', ids: (data ?? []).map((row) => String(row.id)) })
+    }
+  } else {
+    // Home-sent: the pharmacy console. Source 1 — the explicit grant table.
+    const access = await supabase
+      .from('pharmacy_home_access')
+      .select('pharmacy_user_id')
+      .eq('home_id', homeId)
+    if (access.error) {
+      // Expected on databases that never created that table; the other sources cover it.
+      console.log(
+        '[send-push] pharmacy_home_access unavailable, using profiles.role and profiles.pharmacy_id:',
+        access.error.message,
+      )
+    } else {
+      sources.push({
+        label: 'pharmacy_home_access',
+        ids: (access.data ?? []).map((row) => String((row as { pharmacy_user_id?: unknown }).pharmacy_user_id ?? '')),
+      })
+    }
+
+    // Source 2 — the pharmacy console accounts.
+    const staff = await supabase.from('profiles').select('id, role')
+    if (staff.error) {
+      console.error('[send-push] pharmacy role lookup failed:', staff.error.message)
+    } else {
+      sources.push({
+        label: 'profiles.role',
+        ids: (staff.data ?? [])
+          .filter((row) => PHARMACY_ROLES.includes(String((row as { role?: unknown }).role ?? '').toLowerCase()))
+          .map((row) => String(row.id)),
+      })
+    }
+
+    // Source 3 — staff belonging to the pharmacy that owns this thread.
+    if (pharmacyId) {
+      const owned = await supabase.from('profiles').select('id').eq('pharmacy_id', pharmacyId)
+      if (owned.error) {
+        console.error('[send-push] profiles.pharmacy_id lookup failed:', owned.error.message)
+      } else {
+        sources.push({ label: 'profiles.pharmacy_id', ids: (owned.data ?? []).map((row) => String(row.id)) })
+      }
+    }
   }
 
-  // Home-sent: whoever runs the pharmacy console. This used to read a `pharmacy_home_access`
-  // table, but nothing in this database ever created it — so the lookup errored, the
-  // recipient list came back empty, and every home-sent message notified nobody (the trigger
-  // then recorded `{"ok":true,"sent":0,"reason":"no_recipients"}` in net._http_response).
-  const { data, error } = await supabase.from('profiles').select('id, role')
-  if (error) return []
-  return (data ?? [])
-    .filter((row) => PHARMACY_ROLES.includes(String((row as { role?: unknown }).role ?? '').toLowerCase()))
-    .map((row) => String(row.id))
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const source of sources) {
+    for (const id of source.ids) {
+      if (!id || id === senderId || seen.has(id)) continue
+      seen.add(id)
+      ids.push(id)
+    }
+  }
+
+  // One line that answers "why did nobody get it?" without reading any further.
+  console.log(
+    '[send-push] recipients',
+    JSON.stringify({
+      senderRole,
+      homeId,
+      pharmacyId: pharmacyId || null,
+      perSource: sources.map((source): RecipientSource => ({ from: source.label, found: source.ids.length })),
+      notified: ids.length,
+    }),
+  )
+  if (ids.length === 0) console.log('[send-push] no recipients', JSON.stringify({ senderRole, homeId, threadId }))
+  return ids
 }
 
 /**
@@ -146,8 +242,15 @@ async function deliver(
     } catch (error) {
       const statusCode = (error as { statusCode?: number })?.statusCode ?? 0
       lastStatus = statusCode
+      const prunable = statusCode === 404 || statusCode === 410
+      // An endpoint is a capability URL, so only its host is logged. 403 here means the
+      // subscription was created with a different VAPID key than the one signing now.
+      console.warn(
+        '[send-push] send error',
+        JSON.stringify({ statusCode, host: endpointHost(row.endpoint), prune: prunable }),
+      )
       // 404/410 mean the subscription is gone (uninstalled, revoked, expired).
-      if (statusCode === 404 || statusCode === 410) {
+      if (prunable) {
         await supabase.from('push_subscriptions').delete().eq('id', row.id)
         pruned++
       } else {
@@ -157,6 +260,15 @@ async function deliver(
   }
 
   return { sent, pruned, failed, lastStatus }
+}
+
+/** The push service host only — never the whole endpoint, which is a capability URL. */
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host
+  } catch {
+    return 'invalid-endpoint'
+  }
 }
 
 const SUBSCRIPTION_COLUMNS = 'id, endpoint, p256dh, auth, tenant_id'
@@ -185,9 +297,20 @@ Deno.serve(async (request) => {
     }
 
     const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null
-    // Accepts the plain trigger payload, and the Supabase Database Webhook shape.
+    // Accepts the plain trigger payload, and the Supabase Database Webhook shape
+    // { type, table, schema, record, old_record }.
     const record = ((raw?.record ?? raw) ?? null) as Record<string, unknown> | null
     if (!record) return json({ ok: true, sent: 0, reason: 'no_payload' })
+
+    const isTestCall = record.test === true
+    // Optional shared secret, enforced ONLY when it is configured — so a deployment that has
+    // not set PUSH_WEBHOOK_SECRET keeps working exactly as before. The portal's own test
+    // button cannot send a header (it is authenticated by the service-role key instead), so
+    // it is exempt; if the secret is set, the trigger/webhook must send the header too.
+    if (WEBHOOK_SECRET && !isTestCall && request.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
+      console.warn('[send-push] rejected: missing or wrong x-webhook-secret header')
+      return json({ error: 'Forbidden' }, 403)
+    }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -196,7 +319,7 @@ Deno.serve(async (request) => {
     // Self-test: one account proves its own device works, with no message involved. Only a
     // service-role caller (the portal's server route, which has already identified the
     // signed-in user) can ask for this, so the id it passes is trusted.
-    if (record.test === true) {
+    if (isTestCall) {
       const targetUser = typeof record.user_id === 'string' ? record.user_id : ''
       if (!targetUser) return json({ ok: false, reason: 'no_target_user' }, 400)
 
@@ -205,7 +328,10 @@ Deno.serve(async (request) => {
         .select(SUBSCRIPTION_COLUMNS)
         .eq('user_id', targetUser)
       if (ownError) return json({ ok: false, reason: 'subscription_lookup_failed' })
-      if (!ownRows || ownRows.length === 0) return json({ ok: false, reason: 'no_subscriptions' })
+      if (!ownRows || ownRows.length === 0) {
+        console.log('[send-push] no subscriptions', JSON.stringify({ test: true }))
+        return json({ ok: false, reason: 'no_subscriptions' })
+      }
 
       const result = await deliver(
         supabase,
@@ -213,6 +339,7 @@ Deno.serve(async (request) => {
         JSON.stringify({ title: TEST_TITLE, body: TEST_BODY, data: { url: CLICK_URL } }),
         null,
       )
+      console.log('[send-push] done', JSON.stringify({ direction: 'test', ...result }))
       return json({ ok: true, ...result })
     }
 
@@ -243,21 +370,28 @@ Deno.serve(async (request) => {
       .eq('id', threadId)
       .maybeSingle()
     const homeId = thread?.home_id ? String(thread.home_id) : ''
+    const pharmacyId = thread?.pharmacy_id ? String(thread.pharmacy_id) : ''
     if (!homeId) return json({ ok: true, sent: 0, reason: 'no_tenant' })
 
-    const recipientIds = (await recipientsFor(supabase, { senderRole, homeId, senderId })).filter(
-      (id) => id && id !== senderId,
-    )
+    const recipientIds = await recipientsFor(supabase, { senderRole, homeId, pharmacyId, senderId, threadId })
     if (recipientIds.length === 0) return json({ ok: true, sent: 0, reason: 'no_recipients' })
 
     const { data: subscriptionRows, error: subscriptionError } = await supabase
       .from('push_subscriptions')
       .select(SUBSCRIPTION_COLUMNS)
       .in('user_id', recipientIds)
-    if (subscriptionError || !subscriptionRows || subscriptionRows.length === 0) {
+    if (subscriptionError) {
+      console.error('[send-push] subscription lookup failed:', subscriptionError.message)
+      return json({ ok: true, sent: 0, reason: 'subscription_lookup_failed' })
+    }
+    if (!subscriptionRows || subscriptionRows.length === 0) {
+      console.log('[send-push] no subscriptions', JSON.stringify({ recipients: recipientIds.length }))
       return json({ ok: true, sent: 0, reason: 'no_subscriptions' })
     }
 
+    // The body names the *sender's* side, so the reader knows which way the message came.
+    // Pharmacy-sent keeps its existing behaviour: the pharmacy's own name when the thread
+    // carries one. Home-sent uses the fixed generic line.
     let body = BODY_DEFAULT
     if (senderRole === 'pharmacy') {
       let pharmacyName = ''
@@ -270,6 +404,8 @@ Deno.serve(async (request) => {
         pharmacyName = typeof pharmacy?.name === 'string' ? pharmacy.name.trim().slice(0, 60) : ''
       }
       body = pharmacyName ? `You have a new message from ${pharmacyName}` : BODY_FROM_PHARMACY
+    } else {
+      body = BODY_FROM_HOME
     }
 
     // Home users are scoped to the thread's own home — a home must never be notified about
@@ -281,8 +417,12 @@ Deno.serve(async (request) => {
     const result = await deliver(
       supabase,
       subscriptionRows as SubscriptionRow[],
-      JSON.stringify({ title: TITLE, body, data: { url: CLICK_URL } }),
+      JSON.stringify({ title: TITLE, body, tag: TAG, data: { url: CLICK_URL } }),
       restrictToHomeId,
+    )
+    console.log(
+      '[send-push] done',
+      JSON.stringify({ direction: senderRole === 'home' ? 'home→pharmacy' : 'pharmacy→home', ...result }),
     )
     return json({ ok: true, ...result })
   } catch (error) {
