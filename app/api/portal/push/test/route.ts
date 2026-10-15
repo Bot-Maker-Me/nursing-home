@@ -97,7 +97,20 @@ async function refusedByPushService(): Promise<{ error: string; reason: string }
 
   if (functionKey && functionKey !== VAPID_PUBLIC_KEY) {
     return {
-      error: `The push service refused the alert because the notification keys do not match: this device subscribed with the portal's public key, but the send-push function signs every alert with a different one. In Supabase, open Edge Functions → send-push → Manage secrets and set VAPID_PUBLIC_KEY to exactly this portal's public key: ${VAPID_PUBLIC_KEY} — and set VAPID_PRIVATE_KEY to the private half of that same pair. Then send a test alert again; this device is already set up, so nothing needs re-enabling.`,
+      error: `The push service refused the alert because the two notification keys are not the same.
+
+This portal subscribes devices with:
+${VAPID_PUBLIC_KEY}
+
+The send-push function is signing alerts with:
+${functionKey}
+
+Both must hold the same key, and on the function VAPID_PUBLIC_KEY must be the public half of the pair whose private half is VAPID_PRIVATE_KEY. In Supabase: Edge Functions → send-push → Manage secrets.
+
+• If VAPID_PUBLIC_KEY on the function is the only one that was ever changed, set it back to the portal's key above and leave VAPID_PRIVATE_KEY exactly as it is. The pair becomes whole again and this device needs nothing else.
+• If VAPID_PRIVATE_KEY was changed as well, no edit here can fix it: generate a new pair, set BOTH secrets on the function to that pair, put the pair's public key in this deployment's NEXT_PUBLIC_VAPID_PUBLIC_KEY, redeploy, then turn notifications off and on again here.
+
+Then send a test alert again.`,
       reason: 'key_mismatch',
     }
   }

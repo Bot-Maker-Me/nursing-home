@@ -140,7 +140,7 @@ export function PushNotificationSettings({ isAdmin = false }: { isAdmin?: boolea
       {status === 'loading' && <p className="text-sm text-muted-foreground">Checking notification settings…</p>}
 
       {error && (
-        <p role="alert" className="text-sm text-terracotta">
+        <p role="alert" className="whitespace-pre-line text-sm text-terracotta">
           {error}
         </p>
       )}
