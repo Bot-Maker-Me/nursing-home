@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { SUPABASE_URL } from '@/lib/supabase/env'
+import { VAPID_PUBLIC_KEY } from '@/lib/push'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 /**
@@ -18,6 +19,14 @@ type FunctionResult = {
   failed?: number
   lastStatus?: number
   reason?: string
+}
+
+/** What the function reports about the key it signs with — the public half only, ever. */
+type DiagnoseResult = {
+  ok?: boolean
+  publicKey?: string
+  publicKeyLength?: number
+  privateKeyLength?: number
 }
 
 /**
@@ -41,6 +50,70 @@ function explain(reason: string | undefined): string {
       return 'The notification service hit an unexpected error. Its logs will have the detail.'
     default:
       return 'The notification service could not deliver the alert. Its logs will have the detail.'
+  }
+}
+
+/** Asks the send-push function which public key it signs alerts with. Never the private one. */
+async function diagnoseKeys(): Promise<DiagnoseResult | null> {
+  const response = await fetch(SEND_PUSH_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${SERVICE_KEY}` },
+    body: JSON.stringify({ diagnose: true }),
+  }).catch(() => null)
+  if (!response?.ok) return null
+  return (await response.json().catch(() => null)) as DiagnoseResult | null
+}
+
+/**
+ * Why the push service refused an alert, and what to change.
+ *
+ * A refusal is nearly always a key problem, and it has two different fixes that look
+ * identical from here: the portal and the function using different keys, or the function's
+ * own two secrets not being a pair. Only the function knows its half, so it is asked here and
+ * the two public values are compared. The public key is not a secret — every browser sends it
+ * to its push service on every subscribe — and the private half is never queried or printed.
+ */
+async function refusedByPushService(): Promise<{ error: string; reason: string }> {
+  const diagnosis = await diagnoseKeys()
+  const functionKey = typeof diagnosis?.publicKey === 'string' ? diagnosis.publicKey.trim() : ''
+
+  if (diagnosis && !functionKey) {
+    // The deployed function predates this mode, so it has no way to report its key.
+    return {
+      error:
+        'The alert was refused, and the send-push function running in Supabase is an older version that cannot report the key it signs with. Redeploy supabase/functions/send-push/index.ts, then send a test alert again.',
+      reason: 'function_outdated',
+    }
+  }
+
+  if (!VAPID_PUBLIC_KEY) {
+    // Nothing to compare against, and no device could have been set up on this deployment.
+    return {
+      error:
+        'This deployment has no NEXT_PUBLIC_VAPID_PUBLIC_KEY, so no device on it can be set up for alerts. Set that variable, redeploy, then turn notifications on here.',
+      reason: 'portal_key_missing',
+    }
+  }
+
+  if (functionKey && functionKey !== VAPID_PUBLIC_KEY) {
+    return {
+      error: `The push service refused the alert because the notification keys do not match: this device subscribed with the portal's public key, but the send-push function signs every alert with a different one. In Supabase, open Edge Functions → send-push → Manage secrets and set VAPID_PUBLIC_KEY to exactly this portal's public key: ${VAPID_PUBLIC_KEY} — and set VAPID_PRIVATE_KEY to the private half of that same pair. Then send a test alert again; this device is already set up, so nothing needs re-enabling.`,
+      reason: 'key_mismatch',
+    }
+  }
+
+  if (functionKey) {
+    return {
+      error:
+        'The portal and the send-push function use the same public key, so the pair stored on the function is not a matching public/private pair. Generate a new pair, set BOTH VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY on the send-push function to that new pair, put the new public key in this deployment’s NEXT_PUBLIC_VAPID_PUBLIC_KEY, redeploy, then turn notifications off and on again here.',
+      reason: 'key_pair_broken',
+    }
+  }
+
+  return {
+    error:
+      'The push service refused the alert, and the send-push function could not be asked why. Check that it is deployed, then try again.',
+    reason: 'refused',
   }
 }
 
@@ -126,11 +199,19 @@ export async function POST() {
         { status: 502 },
       )
     }
-    // The device is registered but the push service would not take it. 403 here almost
-    // always means the subscription was created against a different VAPID key.
+    // The device is registered but the push service would not take it — a 403 there almost
+    // always means the two keys disagree, which is the one failure the user can repair in a
+    // single step once they are told which value is wrong. `failed` (rather than nothing
+    // sent) is what separates "the push service said no" from "there was nothing to send to".
+    if (result.failed) {
+      return NextResponse.json(
+        { ...(await refusedByPushService()), lastStatus: result.lastStatus ?? 0 },
+        { status: 502 },
+      )
+    }
     return NextResponse.json(
       {
-        error: 'The push service refused the alert for this device. Turn notifications off and on again here, then retry.',
+        error: 'The alert could not be delivered to this device. Turn notifications off and on again here, then retry.',
         reason: 'refused',
         lastStatus: result.lastStatus ?? 0,
       },

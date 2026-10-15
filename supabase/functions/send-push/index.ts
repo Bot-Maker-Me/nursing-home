@@ -11,6 +11,12 @@
  *   • sender_role = 'pharmacy' → the home's users (profiles.home_id = thread.home_id);
  *   • sender_role = 'home'     → the pharmacy side of that conversation.
  *
+ * A third, message-free mode answers the portal's "do our two keys agree?" question: a
+ * service-role call with `{ diagnose: true }` returns the PUBLIC half of the VAPID pair this
+ * function signs with (plus key lengths), so a refused send can be told apart from a broken
+ * pair. The public key is not a secret — every browser sends it to its push service with
+ * every subscribe — and VAPID_PRIVATE_KEY is still never returned, logged or echoed.
+ *
  * Requires these Edge Function secrets (Dashboard → Edge Functions → Manage secrets):
  *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
  * Optional:
@@ -303,13 +309,33 @@ Deno.serve(async (request) => {
     if (!record) return json({ ok: true, sent: 0, reason: 'no_payload' })
 
     const isTestCall = record.test === true
+    const isDiagnoseCall = record.diagnose === true
+    // The portal's own two calls (test alert, key diagnosis) are authenticated by the
+    // service-role key instead, so they carry no webhook secret and are exempt from it.
+    const isPortalCall = isTestCall || isDiagnoseCall
     // Optional shared secret, enforced ONLY when it is configured — so a deployment that has
     // not set PUSH_WEBHOOK_SECRET keeps working exactly as before. The portal's own test
     // button cannot send a header (it is authenticated by the service-role key instead), so
     // it is exempt; if the secret is set, the trigger/webhook must send the header too.
-    if (WEBHOOK_SECRET && !isTestCall && request.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
+    if (WEBHOOK_SECRET && !isPortalCall && request.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
       console.warn('[send-push] rejected: missing or wrong x-webhook-secret header')
       return json({ error: 'Forbidden' }, 403)
+    }
+
+    // Key diagnosis: the portal's public key and this function's VAPID_PUBLIC_KEY must be the
+    // same value, or the push service answers 403 to every send while the device still looks
+    // subscribed. Only the public half is reported here — it is public by design.
+    if (isDiagnoseCall) {
+      console.log(
+        '[send-push] diagnose',
+        JSON.stringify({ publicKeyLength: VAPID_PUBLIC_KEY.length, privateKeyLength: VAPID_PRIVATE_KEY.length }),
+      )
+      return json({
+        ok: true,
+        publicKey: VAPID_PUBLIC_KEY,
+        publicKeyLength: VAPID_PUBLIC_KEY.length,
+        privateKeyLength: VAPID_PRIVATE_KEY.length,
+      })
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
