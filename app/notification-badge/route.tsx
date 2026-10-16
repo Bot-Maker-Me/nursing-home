@@ -14,6 +14,14 @@ import { ImageResponse } from 'next/og'
 const SIZE = { width: 96, height: 96 }
 const BAR = { long: 60, thick: 12 }
 
+/**
+ * Prerendered at build time, exactly like `app/apple-icon.tsx`. A notification's artwork
+ * must never depend on something being generated while the alert is being displayed: the
+ * badge is fetched in the middle of a push event, so it is a static file in the build output
+ * rather than a function that has to render an image on demand.
+ */
+export const dynamic = 'force-static'
+
 export async function GET() {
   return new ImageResponse(
     (
