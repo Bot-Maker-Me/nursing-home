@@ -5,6 +5,7 @@ import {
   EMBED_HINT,
   VAPID_KEY_STATE,
   VAPID_PUBLIC_KEY,
+  findPushRegistration,
   isEmbedded,
   isIosBrowser,
   isStandaloneDisplay,
@@ -116,14 +117,12 @@ export function usePushNotifications(): PushApi {
 
     let serviceWorkerRegistered = false
     let subscription: PushSubscription | null = null
-    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.getRegistration()
-        serviceWorkerRegistered = Boolean(registration)
-        subscription = (await registration?.pushManager.getSubscription()) ?? null
-      } catch {
-        serviceWorkerRegistered = false
-      }
+    // Only the portal's own worker counts — another app's worker on this origin has no `push`
+    // handler, so reporting its state would describe a device that can never be alerted.
+    const registration = await findPushRegistration()
+    if (registration) {
+      serviceWorkerRegistered = true
+      subscription = (await registration.pushManager.getSubscription().catch(() => null)) ?? null
     }
 
     // "Subscribed in this browser" and "the row is in push_subscriptions" are different
@@ -312,7 +311,7 @@ export function usePushNotifications(): PushApi {
     setBusy(true)
     setError(null)
     try {
-      const registration = await navigator.serviceWorker?.getRegistration()
+      const registration = await findPushRegistration()
       const subscription = await registration?.pushManager.getSubscription()
       if (subscription) {
         await fetch('/api/portal/push', {

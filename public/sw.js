@@ -47,6 +47,23 @@ function targetPath(data) {
   return url
 }
 
+/**
+ * The artwork for a notification: the sender's own path when it supplies one, else the
+ * portal's mark.
+ *
+ * A path only, never an absolute URL. Honouring a full URL would let a payload make each
+ * device fetch an image from a third-party host, which both leaks the alert (a beacon) and
+ * lets a sender dress itself up as someone else. A same-origin path is served by this app,
+ * so the sender's brand can only ever be artwork this origin actually ships. The badge is
+ * never taken from the payload: Android masks it to a silhouette, so it stays our own glyph.
+ */
+function iconPath(value, fallback) {
+  if (typeof value !== 'string') return fallback
+  const path = value.trim()
+  if (!path.startsWith('/') || path.startsWith('//') || path.length > 200) return fallback
+  return path
+}
+
 self.addEventListener('install', () => {
   self.skipWaiting()
 })
@@ -76,7 +93,7 @@ self.addEventListener('push', (event) => {
     self.registration
       .showNotification(title, {
         body,
-        icon: ICON,
+        icon: iconPath(payload?.icon, ICON),
         badge: BADGE,
         tag: 'portal-chat',
         renotify: true,

@@ -132,25 +132,67 @@ export function isEmbedded(): boolean {
   }
 }
 
+/** True when this registration is the portal's own push worker rather than another app's. */
+export function isPushRegistration(registration: ServiceWorkerRegistration): boolean {
+  const worker = registration.active ?? registration.waiting ?? registration.installing
+  if (!worker) return false
+  try {
+    return new URL(worker.scriptURL).pathname === SERVICE_WORKER_URL
+  } catch {
+    return false
+  }
+}
+
 /**
- * Registers (or finds) the push service worker served from `public/sw.js` at `/sw.js`.
- * Safe to call on every app load: the browser returns the existing registration instead of
- * installing a second one.
+ * The portal's own registration, ignoring any other worker that shares this origin.
+ *
+ * `navigator.serviceWorker.getRegistration()` is not enough: it hands back whichever
+ * registration owns the current page's scope, so on an origin where something else already
+ * registered a worker at `/` (the workspace preview does) it returns a worker with no `push`
+ * handler at all — and a subscription made through that worker can never display anything.
+ */
+export async function findPushRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+  if (!supportsPush()) return undefined
+  const registrations = await navigator.serviceWorker.getRegistrations().catch(() => [])
+  return registrations.find(isPushRegistration)
+}
+
+/** The root scope of this origin, in the absolute form the Service Worker API reports. */
+function rootScope(): string {
+  return new URL('/', window.location.href).href
+}
+
+/**
+ * Registers the push service worker served from `public/sw.js` at `/sw.js`.
+ *
+ * ALWAYS registers — it never short-circuits on an existing registration. That early return
+ * was the reason a "fixed" notification kept showing the old artwork: the browser re-checks
+ * /sw.js on its own throttled schedule (up to ~24 hours), so handing back the stored
+ * registration left every device running the previous worker, old icon and all. Registering
+ * asks for a fresh fetch; `update()` forces that check to happen now.
+ *
+ * The portal claims the root scope only when it is free or already ours: registering at `/`
+ * on an origin whose scope another app's worker owns would silently replace that worker.
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!supportsPush()) return null
   try {
-    const existing = await navigator.serviceWorker.getRegistration()
-    if (existing) {
-      console.info('[push] step 1: service worker already registered at', existing.scope)
-      return existing
+    if (!(await findPushRegistration())) {
+      const scope = rootScope()
+      const taken = (await navigator.serviceWorker.getRegistrations().catch(() => [])).some(
+        (registration) => registration.scope === scope,
+      )
+      if (taken) {
+        console.warn('[push] step 1: another service worker owns the root scope; leaving it alone')
+        return null
+      }
     }
+
     const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })
-    console.info(
-      '[push] step 1: service worker registered at',
-      registration.scope,
-      registration.active ? '(active)' : '(installing)',
-    )
+    // `register()` alone can still be answered out of the browser's throttled check, and
+    // `updateViaCache` defaults to 'imports', so /sw.js itself is re-fetched rather than cached.
+    await registration.update().catch(() => undefined)
+    console.info('[push] step 1: service worker registered and update requested at', registration.scope)
     return registration
   } catch (caught) {
     // A registration that never happens hides every later step, so the reason is kept
