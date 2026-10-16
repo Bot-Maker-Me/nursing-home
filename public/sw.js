@@ -12,8 +12,17 @@
  * sender asks for it.
  */
 
-const ICON = '/apple-icon.png'
-const BADGE = '/icon-light-32x32.png'
+/*
+ * Brand artwork, generated in code by this app rather than shipped as an image file — see
+ * app/apple-icon.tsx and app/notification-badge/route.tsx. Both are the portal's own mark
+ * (a forest-green square with the cream plus), matching app/icon.svg and the sidebar logo.
+ *
+ * Never point these back at a file in `public/`: that is where the starter template's
+ * artwork lived, and a vendor logo on a notification is exactly the bug this fixes. Note the
+ * missing extension — the generated image is served at `/apple-icon`, not `/apple-icon.png`.
+ */
+const ICON = '/apple-icon'
+const BADGE = '/notification-badge'
 /** `/chat` is the shared chat path used by send-push; this origin serves its chat here. */
 const DEFAULT_URL = '/portal/messages'
 
