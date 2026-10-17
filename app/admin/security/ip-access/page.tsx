@@ -52,7 +52,7 @@ export default async function IpAccessPage() {
           <PageHeader
             crumb="Security › IP access"
             title="Restrict sign-ins by IP address"
-            description="Allow a user or a whole pharmacy to sign in only from the addresses and ranges you list here. Start with Log only to see the decisions before anything is blocked."
+            description="Allow a user, a whole nursing home, or a whole pharmacy to sign in only from the addresses and ranges you list here. A target can hold as many as it needs, and an account is covered by its own rules plus its nursing home's plus its pharmacy's. Start with Log only to see the decisions before anything is blocked."
             aside={
               <Link
                 href="/admin"
@@ -79,8 +79,12 @@ export default async function IpAccessPage() {
                 no rule are refused, the user is signed out, and direct database calls from that address fail too.
               </li>
               <li>
-                Administrators are never restricted, and an account with an empty allowlist is never blocked unless you
-                explicitly switch on “Block this account when its allowlist is empty”.
+                Because the block is also enforced by the database itself, it protects every application on this
+                database — including the Pharma Portal — and not only this one.
+              </li>
+              <li>
+                Administrators are never restricted, and an empty allowlist never blocks anyone unless you explicitly
+                switch on the empty-allowlist block for that target.
               </li>
             </ul>
           </Card>

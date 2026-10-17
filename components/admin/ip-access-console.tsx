@@ -7,13 +7,18 @@ import { Card } from '@/components/portal/page-header'
 import { cn } from '@/lib/utils'
 
 /**
- * Security › IP access — the admin console for the per-user / per-pharmacy allowlist.
+ * Security › IP access — the admin console for the allowlist.
  *
- * This component only ever talks to /api/admin/ip-access*, which verifies the admin role
- * server-side. It never decides an access verdict and never reads an IP from the browser:
- * the "Add my current IP" value comes from the server's own header resolution.
+ * A rule belongs to one account, one nursing home, or one pharmacy, and a target can hold as
+ * many addresses and ranges as it needs. A user is covered by their own rules plus their
+ * home's plus their pharmacy's.
+ *
+ * This component only talks to /api/admin/ip-access*, which verifies the admin role
+ * server-side. It never decides an access verdict and never reads an IP from the browser: the
+ * "Add my current IP" value comes from the server's own header resolution.
  */
 type Mode = 'off' | 'log_only' | 'enforce'
+type Scope = 'user' | 'home' | 'pharmacy'
 
 type PortalUser = {
   id: string
@@ -22,15 +27,16 @@ type PortalUser = {
   role: string
   mode: Mode
   failClosed: boolean
-  pharmacyId: string | null
+  homeName: string
   pharmacyName: string
 }
 
-type Pharmacy = { id: string; name: string; mode: Mode }
+type Home = { id: string; name: string; city: string; mode: Mode; failClosed: boolean }
+type Pharmacy = { id: string; name: string; mode: Mode; failClosed: boolean }
 
 type Rule = {
   id: string
-  scope: 'user' | 'pharmacy'
+  scope: Scope
   targetId: string
   targetName: string
   cidr: string
@@ -52,16 +58,22 @@ type LogRow = {
 }
 
 const MODE_OPTIONS: Array<{ value: Mode; label: string; help: string }> = [
-  { value: 'off', label: 'Off', help: 'Nothing is checked. This account signs in from anywhere, as today.' },
+  { value: 'off', label: 'Off', help: 'Nothing is checked. This target signs in from anywhere, as today.' },
   { value: 'log_only', label: 'Log only', help: 'Every decision is recorded in the audit below. Nobody is ever blocked.' },
-  { value: 'enforce', label: 'Enforce', help: 'Sign-ins from an IP that matches no rule are blocked at the server.' },
+  { value: 'enforce', label: 'Enforce', help: 'Sign-ins from an IP that matches no rule are blocked at the server and in the database.' },
 ]
+
+const FAIL_CLOSED_LABEL: Record<Scope, string> = {
+  user: 'Block this account when its allowlist is empty',
+  home: "Block this home's accounts when the allowlist is empty",
+  pharmacy: "Block this pharmacy's accounts when the allowlist is empty",
+}
 
 const field =
   'h-11 w-full border border-hairline bg-cream px-3 text-sm focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20'
 
-function targetKey(scope: 'user' | 'pharmacy', id: string) {
-  return `${scope === 'user' ? 'u' : 'p'}:${id}`
+function targetKey(scope: Scope, id: string) {
+  return `${scope === 'user' ? 'u' : scope === 'home' ? 'h' : 'p'}:${id}`
 }
 
 function ruleCountLabel(count: number) {
@@ -81,6 +93,7 @@ function messageOf(error: unknown, fallback: string) {
 export function IpAccessConsole() {
   const toast = useToast()
   const [users, setUsers] = useState<PortalUser[]>([])
+  const [homes, setHomes] = useState<Home[]>([])
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([])
   const [rules, setRules] = useState<Rule[]>([])
   const [currentIp, setCurrentIp] = useState('')
@@ -113,7 +126,20 @@ export function IpAccessConsole() {
         mode: user.mode,
         failClosed: user.failClosed,
         isAdmin: user.role.toLowerCase() === 'admin',
-        detail: user.pharmacyName ? `Pharmacy staff — ${user.pharmacyName}` : user.email,
+        detail:
+          user.pharmacyName || user.homeName
+            ? `${user.pharmacyName ? 'Pharmacy staff' : 'Nursing home partner'} — ${user.pharmacyName || user.homeName}`
+            : user.email,
+      })),
+      ...homes.map((home) => ({
+        key: targetKey('home', home.id),
+        scope: 'home' as const,
+        id: home.id,
+        name: home.name,
+        mode: home.mode,
+        failClosed: home.failClosed,
+        isAdmin: false,
+        detail: `Nursing home${home.city ? ` — ${home.city}` : ''}. Applies to every account on it.`,
       })),
       ...pharmacies.map((pharmacy) => ({
         key: targetKey('pharmacy', pharmacy.id),
@@ -121,12 +147,12 @@ export function IpAccessConsole() {
         id: pharmacy.id,
         name: pharmacy.name,
         mode: pharmacy.mode,
-        failClosed: false,
+        failClosed: pharmacy.failClosed,
         isAdmin: false,
-        detail: 'Pharmacy — applies to every account on it',
+        detail: 'Pharmacy — applies to every account on it.',
       })),
     ],
-    [users, pharmacies],
+    [users, homes, pharmacies],
   )
 
   const selected = useMemo(() => targets.find((target) => target.key === selection) ?? null, [targets, selection])
@@ -152,12 +178,14 @@ export function IpAccessConsole() {
       .then((data) => {
         if (cancelled) return
         setUsers(data.users ?? [])
+        setHomes(data.homes ?? [])
         setPharmacies(data.pharmacies ?? [])
         setRules(data.rules ?? [])
         setCurrentIp(typeof data.currentIp === 'string' ? data.currentIp : '')
         setSelection((current) => {
           if (current) return current
           if (data.users?.[0]) return targetKey('user', data.users[0].id)
+          if (data.homes?.[0]) return targetKey('home', data.homes[0].id)
           if (data.pharmacies?.[0]) return targetKey('pharmacy', data.pharmacies[0].id)
           return ''
         })
@@ -203,7 +231,7 @@ export function IpAccessConsole() {
   const saveMode = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!selected) {
-      toast.error('Choose a user or a pharmacy first.')
+      toast.error('Choose a user, a nursing home or a pharmacy first.')
       return
     }
     setSavingMode(true)
@@ -220,17 +248,11 @@ export function IpAccessConsole() {
           }),
         }),
       )
-      if (selected.scope === 'user') {
-        setUsers((current) =>
-          current.map((user) =>
-            user.id === selected.id ? { ...user, mode: draftMode, failClosed: draftFailClosed } : user,
-          ),
-        )
-      } else {
-        setPharmacies((current) =>
-          current.map((pharmacy) => (pharmacy.id === selected.id ? { ...pharmacy, mode: draftMode } : pharmacy)),
-        )
-      }
+      const patch = <T extends { id: string }>(row: T) => (row.id === selected.id ? { ...row, mode: draftMode, failClosed: draftFailClosed } : row)
+      if (selected.scope === 'user') setUsers((current) => current.map(patch))
+      else if (selected.scope === 'home') setHomes((current) => current.map(patch))
+      else setPharmacies((current) => current.map(patch))
+
       const label = MODE_OPTIONS.find((option) => option.value === draftMode)?.label ?? draftMode
       if (typeof data.warning === 'string' && data.warning) toast.error(data.warning)
       else toast.success(`${selected.name} is now set to ${label.toLowerCase()}.`)
@@ -243,7 +265,7 @@ export function IpAccessConsole() {
 
   const addRuleValues = async (cidr: string, label: string) => {
     if (!selected) {
-      toast.error('Choose a user or a pharmacy first.')
+      toast.error('Choose a user, a nursing home or a pharmacy first.')
       return
     }
     setSavingRule(true)
@@ -300,10 +322,10 @@ export function IpAccessConsole() {
         <form onSubmit={saveMode} className="space-y-5">
           <div>
             <label htmlFor="ip-target" className="mb-2 block text-sm font-medium">
-              User or pharmacy
+              User, nursing home, or pharmacy
             </label>
             <select id="ip-target" value={selection} onChange={(event) => setSelection(event.target.value)} className={field}>
-              <option value="">Select a user or a pharmacy</option>
+              <option value="">Select a user, a nursing home or a pharmacy</option>
               <optgroup label="Portal users">
                 {users.map((user) => (
                   <option key={user.id} value={targetKey('user', user.id)}>
@@ -311,6 +333,13 @@ export function IpAccessConsole() {
                     {user.email ? ` — ${user.email}` : ''}
                     {user.role.toLowerCase() === 'admin' ? ' (admin)' : ''} ·{' '}
                     {ruleCountLabel(ruleCounts.get(targetKey('user', user.id)) ?? 0)}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Nursing homes">
+                {homes.map((home) => (
+                  <option key={home.id} value={targetKey('home', home.id)}>
+                    {home.name} · {ruleCountLabel(ruleCounts.get(targetKey('home', home.id)) ?? 0)}
                   </option>
                 ))}
               </optgroup>
@@ -349,11 +378,12 @@ export function IpAccessConsole() {
               {MODE_OPTIONS.find((option) => option.value === draftMode)?.help}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Pharmacy accounts use the stricter of their own mode and their pharmacy&rsquo;s.
+              An account uses the strictest mode of itself, its nursing home and its pharmacy — so a home or pharmacy
+              can protect all of its accounts at once.
             </p>
           </div>
 
-          {selected?.scope === 'user' && (
+          {selected && (
             <label className="flex items-start gap-3 border border-hairline bg-cream p-4 text-sm">
               <input
                 type="checkbox"
@@ -362,10 +392,10 @@ export function IpAccessConsole() {
                 className="mt-0.5 size-4"
               />
               <span>
-                Block this account when its allowlist is empty
+                {FAIL_CLOSED_LABEL[selected.scope]}
                 <span className="mt-1 block text-xs text-muted-foreground">
                   Off by default, and deliberately separate from the mode: while an allowlist is empty nobody is
-                  blocked, so switching this account to Enforce before adding addresses can never lock anyone out.
+                  blocked, so switching this target to Enforce before adding addresses can never lock anyone out.
                 </span>
               </span>
             </label>
@@ -396,7 +426,9 @@ export function IpAccessConsole() {
         meta={selected ? `${selectedRules.length} rule${selectedRules.length === 1 ? '' : 's'}` : undefined}
       >
         {!selected ? (
-          <p className="text-sm text-muted-foreground">Choose a user or a pharmacy above to manage its addresses.</p>
+          <p className="text-sm text-muted-foreground">
+            Choose a user, a nursing home or a pharmacy above to manage its addresses.
+          </p>
         ) : (
           <>
             <ul className="divide-y divide-hairline border-y border-hairline text-sm">

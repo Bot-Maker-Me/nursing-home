@@ -14,6 +14,22 @@ import { requireAdmin } from '@/lib/supabase/admin'
 const MODES = ['off', 'log_only', 'enforce'] as const
 type Mode = (typeof MODES)[number]
 
+/** What a rule can belong to: one user, one nursing home, or one pharmacy. */
+const SCOPES = ['user', 'home', 'pharmacy'] as const
+type Scope = (typeof SCOPES)[number]
+
+/** The single target column that is populated on an allowlist row. */
+function targetIdOf(row: {
+  scope: string
+  user_id?: string | null
+  home_id?: string | null
+  pharmacy_id?: string | null
+}): string {
+  if (row.scope === 'user') return row.user_id ?? ''
+  if (row.scope === 'home') return row.home_id ?? ''
+  return row.pharmacy_id ?? ''
+}
+
 /** Loose shape check only — it rejects prose before the write; Postgres validates the rest. */
 const CIDR_SHAPE = /^[0-9a-fA-F.:/]+$/
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -67,22 +83,23 @@ export async function GET(request: Request) {
   // has to trust a value the browser supplied.
   const own = resolveClientIp(request.headers)
 
-  const [profilesResult, pharmaciesResult, rulesResult, usersResult] = await Promise.all([
+  const [profilesResult, homesResult, pharmaciesResult, rulesResult, usersResult] = await Promise.all([
     context.supabase
       .from('profiles')
-      .select('id, full_name, role, pharmacy_id, ip_restriction_mode, ip_fail_closed')
+      .select('id, full_name, role, home_id, pharmacy_id, ip_restriction_mode, ip_fail_closed')
       .order('full_name'),
-    context.supabase.from('pharmacies').select('id, name, ip_restriction_mode').order('name'),
+    context.supabase.from('homes').select('id, name, city, ip_restriction_mode, ip_fail_closed').order('name'),
+    context.supabase.from('pharmacies').select('id, name, ip_restriction_mode, ip_fail_closed').order('name'),
     context.supabase
       .from('ip_allowlist')
-      .select('id, scope, user_id, pharmacy_id, cidr, label, created_at')
+      .select('id, scope, user_id, home_id, pharmacy_id, cidr, label, created_at')
       .order('created_at'),
     // Optional: only used to show an email beside a name. A deployment without the
     // service-role key falls back to names alone instead of failing the page.
     context.supabase.auth.admin.listUsers({ perPage: 200 }),
   ])
 
-  const failure = profilesResult.error ?? pharmaciesResult.error ?? rulesResult.error
+  const failure = profilesResult.error ?? homesResult.error ?? pharmaciesResult.error ?? rulesResult.error
   if (failure) {
     const reason = explain(failure, 'load')
     return NextResponse.json({ error: reason.error }, { status: reason.status })
@@ -95,17 +112,27 @@ export async function GET(request: Request) {
     }
   }
 
+  const homeRows = (homesResult.data ?? []) as Array<{
+    id: string
+    name: string
+    city: string | null
+    ip_restriction_mode: string
+    ip_fail_closed: boolean
+  }>
   const pharmacyRows = (pharmaciesResult.data ?? []) as Array<{
     id: string
     name: string
     ip_restriction_mode: string
+    ip_fail_closed: boolean
   }>
+  const homeNameById = new Map(homeRows.map((row) => [row.id, row.name]))
   const pharmacyNameById = new Map(pharmacyRows.map((row) => [row.id, row.name]))
 
   const users = ((profilesResult.data ?? []) as Array<{
     id: string
     full_name: string | null
     role: string | null
+    home_id: string | null
     pharmacy_id: string | null
     ip_restriction_mode: string
     ip_fail_closed: boolean
@@ -116,35 +143,53 @@ export async function GET(request: Request) {
     role: row.role ?? '',
     mode: isMode(row.ip_restriction_mode) ? row.ip_restriction_mode : 'off',
     failClosed: Boolean(row.ip_fail_closed),
+    homeId: row.home_id,
+    homeName: row.home_id ? homeNameById.get(row.home_id) ?? '' : '',
     pharmacyId: row.pharmacy_id,
     pharmacyName: row.pharmacy_id ? pharmacyNameById.get(row.pharmacy_id) ?? '' : '',
+  }))
+
+  const homes = homeRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    city: row.city ?? '',
+    mode: isMode(row.ip_restriction_mode) ? row.ip_restriction_mode : 'off',
+    failClosed: Boolean(row.ip_fail_closed),
   }))
 
   const pharmacies = pharmacyRows.map((row) => ({
     id: row.id,
     name: row.name,
     mode: isMode(row.ip_restriction_mode) ? row.ip_restriction_mode : 'off',
+    failClosed: Boolean(row.ip_fail_closed),
   }))
+
+  // A rule can point at a user, a nursing home or a pharmacy — all three are named here so
+  // the console never has to guess, and a deleted target degrades to a readable label.
+  const nameFor = (scope: 'user' | 'home' | 'pharmacy', id: string) =>
+    scope === 'user'
+      ? users.find((user) => user.id === id)?.name
+      : scope === 'home'
+        ? homes.find((home) => home.id === id)?.name
+        : pharmacies.find((pharmacy) => pharmacy.id === id)?.name
 
   const rules = ((rulesResult.data ?? []) as Array<{
     id: string
-    scope: 'user' | 'pharmacy'
+    scope: 'user' | 'home' | 'pharmacy'
     user_id: string | null
+    home_id: string | null
     pharmacy_id: string | null
     cidr: string
     label: string
     created_at: string
   }>).map((row) => {
-    const targetId = row.scope === 'user' ? row.user_id ?? '' : row.pharmacy_id ?? ''
-    const target =
-      row.scope === 'user'
-        ? users.find((user) => user.id === targetId)
-        : pharmacies.find((pharmacy) => pharmacy.id === targetId)
+    const targetId =
+      row.scope === 'user' ? row.user_id ?? '' : row.scope === 'home' ? row.home_id ?? '' : row.pharmacy_id ?? ''
     return {
       id: row.id,
       scope: row.scope,
       targetId,
-      targetName: (target as { name?: string } | undefined)?.name ?? 'Removed target',
+      targetName: nameFor(row.scope, targetId) ?? 'Removed target',
       cidr: row.cidr,
       label: row.label,
       createdAt: row.created_at,
@@ -155,12 +200,13 @@ export async function GET(request: Request) {
     currentIp: own.ip,
     currentIpEvidence: own.evidence,
     users,
+    homes,
     pharmacies,
     rules,
   })
 }
 
-/** POST — add an IP or range to a user's or pharmacy's allowlist. */
+/** POST — add an IP or range to a user's, a nursing home's or a pharmacy's allowlist. */
 export async function POST(request: Request) {
   const context = await requireAdmin()
   if (!context.ok) return context.response
@@ -169,13 +215,13 @@ export async function POST(request: Request) {
   if (!limitResult.ok) return rateLimitResponse(limitResult)
 
   const body = await request.json().catch(() => null)
-  const scope = body?.scope === 'user' || body?.scope === 'pharmacy' ? body.scope : ''
+  const scope = SCOPES.includes(body?.scope) ? (body.scope as Scope) : null
   const targetId = typeof body?.targetId === 'string' ? body.targetId.trim() : ''
   const cidr = typeof body?.cidr === 'string' ? body.cidr.trim() : ''
   const label = typeof body?.label === 'string' ? body.label.trim().slice(0, 80) : ''
 
   if (!scope || !UUID_SHAPE.test(targetId)) {
-    return NextResponse.json({ error: 'Choose a user or a pharmacy before adding an IP.' }, { status: 400 })
+    return NextResponse.json({ error: 'Choose a user, a nursing home or a pharmacy first.' }, { status: 400 })
   }
   if (!cidr || cidr.length > 64 || !CIDR_SHAPE.test(cidr)) {
     return NextResponse.json(
@@ -189,12 +235,13 @@ export async function POST(request: Request) {
     .insert({
       scope,
       user_id: scope === 'user' ? targetId : null,
+      home_id: scope === 'home' ? targetId : null,
       pharmacy_id: scope === 'pharmacy' ? targetId : null,
       cidr,
       label,
       created_by: context.userId,
     })
-    .select('id, scope, user_id, pharmacy_id, cidr, label, created_at')
+    .select('id, scope, user_id, home_id, pharmacy_id, cidr, label, created_at')
     .single()
 
   if (error) {
@@ -207,7 +254,7 @@ export async function POST(request: Request) {
     rule: {
       id: data.id,
       scope: data.scope,
-      targetId: data.scope === 'user' ? data.user_id : data.pharmacy_id,
+      targetId: targetIdOf(data),
       cidr: data.cidr,
       label: data.label,
       createdAt: data.created_at,
@@ -224,24 +271,23 @@ export async function PATCH(request: Request) {
   if (!limitResult.ok) return rateLimitResponse(limitResult)
 
   const body = await request.json().catch(() => null)
-  const scope = body?.scope === 'user' || body?.scope === 'pharmacy' ? body.scope : ''
+  const scope = SCOPES.includes(body?.scope) ? (body.scope as Scope) : null
   const targetId = typeof body?.targetId === 'string' ? body.targetId.trim() : ''
   const mode = body?.mode
   const failClosed = typeof body?.failClosed === 'boolean' ? body.failClosed : undefined
 
   if (!scope || !UUID_SHAPE.test(targetId)) {
-    return NextResponse.json({ error: 'Choose a user or a pharmacy first.' }, { status: 400 })
+    return NextResponse.json({ error: 'Choose a user, a nursing home or a pharmacy first.' }, { status: 400 })
   }
   if (!isMode(mode)) {
     return NextResponse.json({ error: 'Choose a mode: off, log only, or enforce.' }, { status: 400 })
   }
 
-  // A pharmacy's fail-closed behaviour lives on each profile, so only profiles carry the flag.
   const update: Record<string, unknown> = { ip_restriction_mode: mode }
-  if (scope === 'user' && failClosed !== undefined) update.ip_fail_closed = failClosed
+  if (failClosed !== undefined) update.ip_fail_closed = failClosed
 
   const { error } = await context.supabase
-    .from(scope === 'user' ? 'profiles' : 'pharmacies')
+    .from(scope === 'user' ? 'profiles' : scope === 'home' ? 'homes' : 'pharmacies')
     .update(update)
     .eq('id', targetId)
 
@@ -255,18 +301,18 @@ export async function PATCH(request: Request) {
   const { count } = await context.supabase
     .from('ip_allowlist')
     .select('id', { count: 'exact', head: true })
-    .eq(scope === 'user' ? 'user_id' : 'pharmacy_id', targetId)
+    .eq(scope === 'user' ? 'user_id' : scope === 'home' ? 'home_id' : 'pharmacy_id', targetId)
   const ruleCount = count ?? 0
 
   const warning =
     mode === 'enforce' && ruleCount === 0 && failClosed === true
-      ? 'Saved, but fail-closed enforcement is on with no allowed IPs — that account will be blocked from every IP until you add one.'
+      ? 'Saved, but fail-closed enforcement is on with no allowed IPs — everyone this covers will be blocked from every IP until you add one.'
       : null
 
   return NextResponse.json({
     ok: true,
     mode,
-    failClosed: scope === 'user' ? failClosed ?? null : null,
+    failClosed: failClosed ?? null,
     ruleCount,
     warning,
   })
