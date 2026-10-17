@@ -21,11 +21,15 @@ const PHARMACY_ROLE = 'Pharmacy'
 const isPharmacyRole = (role: string) => role.toLowerCase() === 'pharmacy'
 const roleLabel = (role: string) => (isPharmacyRole(role) ? 'Pharmacy team' : 'Nursing home partner')
 
-const NAV = [
+type NavItem = { id: string; label: string; href?: string }
+
+const NAV: NavItem[] = [
   { id: 'clients', label: 'Clients & pharmacies' },
   { id: 'users', label: 'User accounts' },
   { id: 'conversations', label: 'Conversations' },
   { id: 'data', label: 'Data manager' },
+  // Security lives on its own page: it is admin-only and reads its own data.
+  { id: 'security', label: 'Security — IP access', href: '/admin/security/ip-access' },
 ]
 
 export function TeamConsole() {
@@ -182,11 +186,17 @@ export function TeamConsole() {
           <p className="eyebrow text-sidebar-foreground/60">Team administration</p>
           <p className="mt-3 text-2xl font-semibold text-white">Client setup</p>
           <nav className="mt-6 space-y-1 text-sm" aria-label="Admin sections">
-            {NAV.map((item) => (
-              <a key={item.id} href={`#${item.id}`} className="block border-l border-sidebar-border px-3 py-2 text-sidebar-foreground/80 hover:border-[#f0d36b] hover:text-white">
-                {item.label}
-              </a>
-            ))}
+            {NAV.map((item) =>
+              item.href ? (
+                <Link key={item.id} href={item.href} className="block border-l border-sidebar-border px-3 py-2 text-sidebar-foreground/80 hover:border-[#f0d36b] hover:text-white">
+                  {item.label}
+                </Link>
+              ) : (
+                <a key={item.id} href={`#${item.id}`} className="block border-l border-sidebar-border px-3 py-2 text-sidebar-foreground/80 hover:border-[#f0d36b] hover:text-white">
+                  {item.label}
+                </a>
+              ),
+            )}
           </nav>
         </div>
         <button
