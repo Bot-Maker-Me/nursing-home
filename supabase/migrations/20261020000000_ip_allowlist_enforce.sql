@@ -14,10 +14,47 @@
 -- session, with no code change in that app. (Only the service role bypasses RLS; if the
 -- Pharma Portal queries with a service key, see the notes at the bottom of this file.)
 
+-- ============================================================
+-- 0. Prerequisites
+-- ============================================================
+-- Checked against pg_proc directly. NOT with to_regproc('public.ip_gate_ok()'): that function
+-- does not accept a signature with parentheses, so it answers NULL even when the function
+-- exists — a false alarm that aborted this whole script once already.
+--
+-- Every missing name is reported in one run, and each one names the script that creates it.
 do $$
+declare
+  prereq record;
+  missing text[] := array[]::text[];
 begin
-  if to_regproc('public.ip_gate_ok()') is null then
-    raise exception 'public.ip_gate_ok() is missing — run 20261019000000_ip_access_logging.sql first.';
+  for prereq in
+    select * from (values
+      ('ip_is_allowed', 2, '20261017000000_ip_allowlist.sql (Phase 1)'),
+      ('ip_effective_mode', 1, '20261017000000_ip_allowlist.sql (Phase 1)'),
+      ('is_ip_exempt_user', 1, '20261017000000_ip_allowlist.sql (Phase 1)'),
+      ('ip_fail_closed', 1, '20261018000000_ip_allowlist_org_scope.sql (Phase 1b)'),
+      ('ip_parse', 1, '20261019000000_ip_access_logging.sql (Phase 3)'),
+      ('ip_has_rules', 1, '20261019000000_ip_access_logging.sql (Phase 3)'),
+      ('ip_matched_rule', 2, '20261019000000_ip_access_logging.sql (Phase 3)'),
+      ('ip_would_block_for', 2, '20261019000000_ip_access_logging.sql (Phase 3)'),
+      ('ip_gate_ok', 0, '20261019000000_ip_access_logging.sql (Phase 3)')
+    ) as t(name, args, source)
+  loop
+    if not exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = prereq.name
+        and p.pronargs = prereq.args
+    ) then
+      missing := missing || format('%s → run %s', prereq.name, prereq.source);
+    end if;
+  end loop;
+
+  if array_length(missing, 1) > 0 then
+    raise exception 'This database is missing %, so the policies were NOT created: %',
+      array_length(missing, 1), array_to_string(missing, ' | ');
   end if;
 end $$;
 
