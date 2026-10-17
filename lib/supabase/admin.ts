@@ -1,21 +1,14 @@
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import { type SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { SUPABASE_URL } from '@/lib/supabase/env'
-
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.JWT_2 ?? ''
+import { createServiceClient } from '@/lib/supabase/service'
 
 /**
- * Service-role client for trusted server code. Bypasses Row Level Security and the
- * per-table grants that the session (anon) key depends on, so staff writes never fail
- * with "permission denied". Returns null when no service key is configured.
+ * Service-role client for trusted server code. Bypasses Row Level Security and the per-table
+ * grants that the session (anon) key depends on, so staff writes never fail with "permission
+ * denied". Returns null when no service key is configured.
  */
-export function createAdminClient(): SupabaseClient | null {
-  if (!SERVICE_KEY) return null
-  return createSupabaseClient(SUPABASE_URL, SERVICE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
+export const createAdminClient = createServiceClient
 
 export type StaffContext =
   | { ok: true; supabase: SupabaseClient; userId: string; role: string; usingServiceRole: boolean }
@@ -35,7 +28,7 @@ export async function requireStaff(allowedRoles: string[]): Promise<StaffContext
   const role = String(profile?.role ?? user.app_metadata?.role ?? '').toLowerCase()
   if (!allowedRoles.includes(role)) return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
 
-  const service = createAdminClient()
+  const service = createServiceClient()
   const supabase = (service ?? session) as SupabaseClient
   return { ok: true, supabase, userId: user.id, role, usingServiceRole: Boolean(service) }
 }

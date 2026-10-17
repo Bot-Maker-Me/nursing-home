@@ -24,13 +24,15 @@ export async function GET(request: Request) {
 
   let query = context.supabase
     .from('ip_access_log')
-    .select('id, user_id, ip, allowed, mode, matched_rule, source, path, user_agent, created_at')
+    .select('id, user_id, ip, allowed, would_block, mode, matched_rule, source, path, user_agent, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
 
   if (UUID_SHAPE.test(userId)) query = query.eq('user_id', userId)
   if (verdict === 'denied') query = query.eq('allowed', false)
   if (verdict === 'allowed') query = query.eq('allowed', true)
+  // The Log-only rehearsal view: requests that enforcement would refuse.
+  if (verdict === 'would_block') query = query.eq('would_block', true)
 
   const { data, error } = await query
   if (error) {
@@ -50,6 +52,7 @@ export async function GET(request: Request) {
     user_id: string | null
     ip: string
     allowed: boolean
+    would_block: boolean
     mode: string
     matched_rule: string
     source: string

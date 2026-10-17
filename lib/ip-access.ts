@@ -1,3 +1,5 @@
+import { createServiceClient } from '@/lib/supabase/service'
+
 /**
  * Server-side client-IP resolution — the ONLY place an IP is read for access decisions.
  *
@@ -51,4 +53,82 @@ export function resolveClientIp(headers: Headers): ResolvedClientIp {
 
   const ip = firstEntry(realIp) || firstEntry(vercelForwarded) || firstEntry(forwardedFor)
   return { ip: ip || UNKNOWN_IP, evidence }
+}
+
+/** What the database decided about one request. */
+export type IpGuardVerdict = {
+  ip: string
+  mode: 'off' | 'log_only' | 'enforce'
+  /** Whether this request is permitted under the target's current mode. */
+  allowed: boolean
+  /** What enforcement would do to this request — the Log-only preview. */
+  wouldBlock: boolean
+  /** The label (or range) of the rule that let it through, if any. */
+  matchedRule: string
+  exempt: boolean
+}
+
+type GuardSource = 'login' | 'page' | 'api'
+
+/**
+ * Evaluates the current request against the allowlist and records the decision.
+ *
+ * The IP comes from the proxy headers (`resolveClientIp`) — never from the browser — and the
+ * evaluation itself lives in the database (`public.ip_guard`), so the app and the
+ * row-level gate can never disagree about the verdict.
+ *
+ * The single-purpose RPC is granted to service_role only: a signed-in user cannot read the
+ * allowlist, and cannot write audit rows claiming a decision that was never made.
+ *
+ * Never throws: a failure here must not break sign-in, chat, push or routing. Returns null
+ * when no verdict could be obtained, which callers must treat as "carry on".
+ */
+export async function guardIpAccess({
+  request,
+  userId,
+  path,
+  source,
+}: {
+  request: Request
+  userId: string
+  path: string
+  source: GuardSource
+}): Promise<IpGuardVerdict | null> {
+  const service = createServiceClient()
+  if (!service) {
+    console.warn('[ip-access] SUPABASE_SERVICE_ROLE_KEY is not set, so access decisions cannot be recorded.')
+    return null
+  }
+
+  const { ip, evidence } = resolveClientIp(request.headers)
+
+  try {
+    const { data, error } = await service.rpc('ip_guard', {
+      p_user_id: userId,
+      p_ip: ip,
+      p_path: path.slice(0, 300),
+      p_source: source,
+      p_user_agent: (request.headers.get('user-agent') ?? '').slice(0, 300) || null,
+      // Only the IP headers. Cookies and authorization are never captured.
+      p_headers: evidence,
+    })
+    if (error) {
+      console.error('[ip-access] recording the decision failed:', error.code ?? 'unknown', error.message)
+      return null
+    }
+    if (!data || typeof data !== 'object') return null
+
+    const verdict = data as Record<string, unknown>
+    return {
+      ip: typeof verdict.ip === 'string' ? verdict.ip : ip,
+      mode: verdict.mode === 'enforce' || verdict.mode === 'log_only' ? verdict.mode : 'off',
+      allowed: verdict.allowed !== false,
+      wouldBlock: verdict.would_block === true,
+      matchedRule: typeof verdict.matched_rule === 'string' ? verdict.matched_rule : '',
+      exempt: verdict.exempt === true,
+    }
+  } catch (error) {
+    console.error('[ip-access] the access check failed:', error instanceof Error ? error.name : 'unknown error')
+    return null
+  }
 }

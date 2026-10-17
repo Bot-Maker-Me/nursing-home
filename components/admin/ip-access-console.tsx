@@ -49,6 +49,7 @@ type LogRow = {
   user_id: string | null
   ip: string
   allowed: boolean
+  would_block: boolean
   mode: string
   matched_rule: string
   source: string
@@ -558,6 +559,7 @@ export function IpAccessConsole() {
               <option value="">Any</option>
               <option value="allowed">Allowed</option>
               <option value="denied">Blocked</option>
+              <option value="would_block">Enforcement would block</option>
             </select>
           </div>
           <div className="min-w-[8rem] flex-1">
@@ -586,8 +588,8 @@ export function IpAccessConsole() {
         {logRows.length === 0 ? (
           <p className="mt-6 flex items-start gap-2 border border-hairline bg-cream px-4 py-3 text-sm text-muted-foreground">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            Nothing recorded yet. Decisions appear here once the server-side check is running, and they are only written
-            while a target is set to Log only or Enforce.
+            Nothing recorded yet. Decisions are only written while a target is set to Log only or Enforce — set a
+            mode above, then sign in or reload the portal as that account and press Refresh.
           </p>
         ) : (
           <div className="mt-6 overflow-x-auto">
@@ -612,13 +614,21 @@ export function IpAccessConsole() {
                     <td className="py-3 pr-4">{row.user_id ? logNames[row.user_id] ?? 'Portal user' : '—'}</td>
                     <td className="py-3 pr-4 font-mono">{row.ip || '—'}</td>
                     <td className="py-3 pr-4">
-                      <span
-                        className={cn(
-                          'status-pill inline-flex px-2 py-0.5 text-xs font-medium',
-                          row.allowed ? 'status-delivered' : 'status-out',
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'status-pill inline-flex px-2 py-0.5 text-xs font-medium',
+                            row.allowed ? 'status-delivered' : 'status-out',
+                          )}
+                        >
+                          {row.allowed ? 'Allowed' : 'Blocked'}
+                        </span>
+                        {/* Log-only rehearsals: nothing was refused, but enforcement would. */}
+                        {row.would_block && row.allowed && (
+                          <span className="status-pill status-preparing inline-flex px-2 py-0.5 text-xs font-medium">
+                            would block
+                          </span>
                         )}
-                      >
-                        {row.allowed ? 'Allowed' : 'Blocked'}
                       </span>
                     </td>
                     <td className="py-3 pr-4 text-muted-foreground">{row.mode || '—'}</td>

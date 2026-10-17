@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { guardIpAccess } from '@/lib/ip-access'
 import { createClient } from '@/lib/supabase/server'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase/env'
 
@@ -32,6 +33,23 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data, error } = await supabase.auth.setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token })
   if (error || !data.user) return NextResponse.json({ error: 'Unable to establish a secure session.' }, { status: 500 })
+
+  // The allowlist is checked at the moment of sign-in too, so an attempt from a disallowed
+  // address is recorded even if the user never loads a page afterwards. The verdict is only
+  // reported to the server log for now: Log-only mode records without ever blocking.
+  const verdict = await guardIpAccess({
+    request,
+    userId: data.user.id,
+    path: '/api/auth/sign-in',
+    source: 'login',
+  })
+  if (verdict && verdict.wouldBlock) {
+    console.info('[ip-access] sign-in from an address that enforcement would block:', {
+      ip: verdict.ip,
+      mode: verdict.mode,
+      allowed: verdict.allowed,
+    })
+  }
 
   const metadataRole = typeof data.user.app_metadata?.role === 'string' ? data.user.app_metadata.role.toLowerCase() : ''
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
