@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { guardIpAccess } from '@/lib/ip-access'
+import { ACCESS_RESTRICTED_MESSAGE, guardIpAccess } from '@/lib/ip-access'
 import { createClient } from '@/lib/supabase/server'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase/env'
 
@@ -35,19 +35,31 @@ export async function POST(request: Request) {
   if (error || !data.user) return NextResponse.json({ error: 'Unable to establish a secure session.' }, { status: 500 })
 
   // The allowlist is checked at the moment of sign-in too, so an attempt from a disallowed
-  // address is recorded even if the user never loads a page afterwards. The verdict is only
-  // reported to the server log for now: Log-only mode records without ever blocking.
+  // address is recorded even if the user never loads a page afterwards — and, in Enforce
+  // mode, is refused here with the session torn down again. The verdict is always recorded
+  // by ip_guard; only the wording below is ever shown, never the accepted addresses.
   const verdict = await guardIpAccess({
     request,
     userId: data.user.id,
     path: '/api/auth/sign-in',
     source: 'login',
   })
-  if (verdict && verdict.wouldBlock) {
-    console.info('[ip-access] sign-in from an address that enforcement would block:', {
+
+  if (verdict && !verdict.allowed) {
+    await supabase.auth.signOut()
+    console.warn('[ip-access] refused a sign-in from a disallowed address:', {
       ip: verdict.ip,
       mode: verdict.mode,
-      allowed: verdict.allowed,
+    })
+    return NextResponse.json({ error: ACCESS_RESTRICTED_MESSAGE, restricted: true }, { status: 403 })
+  }
+
+  // Log-only rehearsal: the sign-in is allowed, but this address would be refused once the
+  // target is switched to Enforce.
+  if (verdict?.wouldBlock) {
+    console.info('[ip-access] sign-in recorded; enforcement would block this address:', {
+      ip: verdict.ip,
+      mode: verdict.mode,
     })
   }
 
