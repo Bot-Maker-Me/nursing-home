@@ -121,6 +121,9 @@ create policy "Admins append ip access log" on public.ip_access_log for insert t
 
 grant select, insert, update, delete on public.ip_allowlist to authenticated;
 grant select, insert on public.ip_access_log to authenticated;
+-- The log's identity column needs its sequence too, or an INSERT as a signed-in admin fails
+-- with "permission denied for sequence ip_access_log_id_seq".
+grant usage, select on sequence public.ip_access_log_id_seq to authenticated;
 grant all on public.ip_allowlist to service_role;
 grant all on public.ip_access_log to service_role;
 
@@ -143,12 +146,12 @@ stable as $$
   select
     exists (
       select 1 from public.ip_allowlist a
-      where a.scope = 'user' and a.user_id = p_user_id and p_ip <<= a.cidr
+      where a.scope = 'user' and a.user_id = p_user_id and p_ip <<= a.cidr::inet
     )
     or exists (
       select 1 from public.ip_allowlist a
       join public.profiles p on p.pharmacy_id = a.pharmacy_id
-      where a.scope = 'pharmacy' and p.id = p_user_id and p_ip <<= a.cidr
+      where a.scope = 'pharmacy' and p.id = p_user_id and p_ip <<= a.cidr::inet
     );
 $$;
 
